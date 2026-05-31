@@ -868,6 +868,10 @@ for nov in lista_nov:
     if orden_limp is None:
         continue
 
+    # --- NUEVA LÍNEA: Extraemos el estado/motivo desde la novedad ---
+    # Cambia "estado" o "motivo" por la clave exacta que uses en tu diccionario 'nov'
+    estado = nov.get("estado") # o nov.get("motivo") u otra clave que guardes ahí
+
     alumno_df = df[df['ORDEN_LIMP'] == orden_limp]
 
     if not alumno_df.empty:
@@ -875,7 +879,7 @@ for nov in lista_nov:
         data_ausentes.append({
             "Orden": int(alumno.get("ORDEN_GENERAL", 0)),
             "Nombre": alumno.get("NOMBRE_COMPLETO", "S/N"),
-            "Motivo": estado if estado else "S/D",
+            "Motivo": estado if estado else "S/D",  # ¡Ahora sí existirá la variable!
             "Desde": alumno.get("FECHA_INI", "S/D"),
             "Hasta": alumno.get("FECHA_FIN", "S/D"),
         })
