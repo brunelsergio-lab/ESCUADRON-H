@@ -1010,18 +1010,26 @@ if st.button("📥 PREPARAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_cont
         use_container_width=True
     )
 # ==============================================================================
-# 6. EXPORTAR PARTE DE RACIONAMIENTO (EXCEL)
+# 6. PARTE DE RACIONAMIENTO (DESCARGA DIRECTA EN 1 CLICK)
 # ==============================================================================
-if st.button("📦 PREPARAR PARTE DE RACIONAMIENTO (EXCEL)", type="secondary", use_container_width=True):
+
+# ⚠️ CRÍTICO: Ajustá esta línea con tu variable REAL de datos
+# Si usás DataFrame: df_raciones = st.session_state.get("df_personal", pd.DataFrame())
+# Si usás lista:    lista_raciones = st.session_state.get("lista_personal", [])
+df_raciones = st.session_state.get("df_personal", pd.DataFrame())
+
+if df_raciones.empty:
+    st.warning("️ No hay datos cargados. Completá la lista antes de generar el parte.")
+else:
+    from io import BytesIO
     import openpyxl
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     from datetime import datetime
-    from io import BytesIO
 
     buffer = BytesIO()
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "PARTE DE RACIONAMIENTO"
+    ws.title = "RACIONAMIENTO"
 
     # 🏛️ ENCABEZADO
     ws.merge_cells('A1:E1')
@@ -1031,8 +1039,7 @@ if st.button("📦 PREPARAR PARTE DE RACIONAMIENTO (EXCEL)", type="secondary", u
     ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
 
     ws.merge_cells('A2:E2')
-    fecha_rep = getattr(st.session_state, "fecha_reporte", datetime.now())
-    ws['A2'] = f"Fecha: {fecha_rep.strftime('%d/%m/%Y')} | Generado: {datetime.now().strftime('%H:%M')}"
+    ws['A2'] = f"Fecha: {datetime.now().strftime('%d/%m/%Y')} | Generado: {datetime.now().strftime('%H:%M:%S')}"
     ws['A2'].font = Font(italic=True, size=11, color="555555")
     ws['A2'].alignment = Alignment(horizontal="center")
 
@@ -1045,49 +1052,44 @@ if st.button("📦 PREPARAR PARTE DE RACIONAMIENTO (EXCEL)", type="secondary", u
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
 
-    # ⚠️ ADAPTAR ESTA LÍNEA CON TU VARIABLE REAL DE RACIONES
-    # Ejemplo: data_raciones = st.session_state.lista_raciones  O  df_raciones.to_dict('records')
-    data_raciones = st.session_state.get("lista_raciones", []) 
+    # 📊 CARGAR DATOS REALES (Itera sobre tu DataFrame/Lista)
+    for idx, row in df_raciones.iterrows():
+        ws.append([
+            row.get("orden", row.get("ORDEN", "")),
+            row.get("nombre", row.get("NOMBRE_COMPLETO", "")),
+            row.get("racion", row.get("RACION", "COMPLETA")),
+            row.get("tipo", row.get("TIPO", "NORMAL")),
+            row.get("obs", row.get("OBSERVACIONES", ""))
+        ])
 
-    if data_raciones:
-        for idx, item in enumerate(data_raciones):
-            row_num = 5 + idx
-            ws.cell(row=row_num, column=1, value=item.get("orden", ""))
-            ws.cell(row=row_num, column=2, value=item.get("nombre", ""))
-            ws.cell(row=row_num, column=3, value=item.get("racion", "COMPLETA"))
-            ws.cell(row=row_num, column=4, value=item.get("tipo", "NORMAL"))
-            ws.cell(row=row_num, column=5, value=item.get("obs", ""))
+    # Bordes y alineación para todas las filas llenas
+    for row in ws.iter_rows(min_row=5, max_row=ws.max_row, min_col=1, max_col=5):
+        for cell in row:
+            cell.alignment = Alignment(horizontal="center" if cell.column == 1 else "left", vertical="center")
+            cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
 
-            for col in range(1, 6):
-                cell = ws.cell(row=row_num, column=col)
-                cell.alignment = Alignment(horizontal="center" if col == 1 else "left", vertical="center")
-                cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+    # Ajuste de anchos
+    ws.column_dimensions['A'].width = 8
+    ws.column_dimensions['B'].width = 35
+    ws.column_dimensions['C'].width = 15
+    ws.column_dimensions['D'].width = 12
+    ws.column_dimensions['E'].width = 30
 
-        # Ajuste de anchos
-        ws.column_dimensions['A'].width = 8
-        ws.column_dimensions['B'].width = 35
-        ws.column_dimensions['C'].width = 15
-        ws.column_dimensions['D'].width = 12
-        ws.column_dimensions['E'].width = 30
-    else:
-        ws.merge_cells('A5:E5')
-        ws.cell(row=5, column=1, value="Sin datos de racionamiento cargados").font = Font(italic=True, color="888888")
-        ws.cell(row=5, column=1).alignment = Alignment(horizontal="center")
-
-    # 💾 DESCARGA
+    # 💾 GUARDAR EN MEMORIA
     wb.save(buffer)
     buffer.seek(0)
-    fecha_archivo = datetime.now().strftime("%Y%m%d_%H%M")
 
-    st.success("✅ Parte de Racionamiento generado")
+    # 📥 BOTÓN DE DESCARGA INMEDIATA (1 solo click)
+    fecha_archivo = datetime.now().strftime("%Y%m%d_%H%M")
     st.download_button(
-        label="⬇️ DESCARGAR RACIONAMIENTO",
+        label="📥 DESCARGAR PARTE DE RACIONAMIENTO AHORA",
         data=buffer,
         file_name=f"Racionamiento_Escuadron_H_{fecha_archivo}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        type="secondary",
+        type="primary",
         use_container_width=True
     )
+# ==============================================================================
 # ==============================================================================
     # 🔹 SECCIÓN 3: PERSONAL QUE ALMUERZA
     ws['A18'] = "🍽️ PERSONAL QUE ALMUERZA"
