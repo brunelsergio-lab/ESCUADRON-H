@@ -1009,7 +1009,86 @@ if st.button("📥 PREPARAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_cont
         type="primary",
         use_container_width=True
     )
+# ==============================================================================
+# 6. EXPORTAR PARTE DE RACIONAMIENTO (EXCEL)
+# ==============================================================================
+if st.button("📦 PREPARAR PARTE DE RACIONAMIENTO (EXCEL)", type="secondary", use_container_width=True):
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from datetime import datetime
+    from io import BytesIO
 
+    buffer = BytesIO()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "PARTE DE RACIONAMIENTO"
+
+    # 🏛️ ENCABEZADO
+    ws.merge_cells('A1:E1')
+    ws['A1'] = "PARTE DE RACIONAMIENTO - ESCUADRÓN H"
+    ws['A1'].font = Font(bold=True, size=18, color="FFFFFF")
+    ws['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
+
+    ws.merge_cells('A2:E2')
+    fecha_rep = getattr(st.session_state, "fecha_reporte", datetime.now())
+    ws['A2'] = f"Fecha: {fecha_rep.strftime('%d/%m/%Y')} | Generado: {datetime.now().strftime('%H:%M')}"
+    ws['A2'].font = Font(italic=True, size=11, color="555555")
+    ws['A2'].alignment = Alignment(horizontal="center")
+
+    # 📋 ENCABEZADOS DE TABLA
+    headers = ["ORDEN", "NOMBRE COMPLETO", "RACIÓN", "TIPO", "OBSERVACIONES"]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="556B2F", end_color="556B2F", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+
+    # ⚠️ ADAPTAR ESTA LÍNEA CON TU VARIABLE REAL DE RACIONES
+    # Ejemplo: data_raciones = st.session_state.lista_raciones  O  df_raciones.to_dict('records')
+    data_raciones = st.session_state.get("lista_raciones", []) 
+
+    if data_raciones:
+        for idx, item in enumerate(data_raciones):
+            row_num = 5 + idx
+            ws.cell(row=row_num, column=1, value=item.get("orden", ""))
+            ws.cell(row=row_num, column=2, value=item.get("nombre", ""))
+            ws.cell(row=row_num, column=3, value=item.get("racion", "COMPLETA"))
+            ws.cell(row=row_num, column=4, value=item.get("tipo", "NORMAL"))
+            ws.cell(row=row_num, column=5, value=item.get("obs", ""))
+
+            for col in range(1, 6):
+                cell = ws.cell(row=row_num, column=col)
+                cell.alignment = Alignment(horizontal="center" if col == 1 else "left", vertical="center")
+                cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+
+        # Ajuste de anchos
+        ws.column_dimensions['A'].width = 8
+        ws.column_dimensions['B'].width = 35
+        ws.column_dimensions['C'].width = 15
+        ws.column_dimensions['D'].width = 12
+        ws.column_dimensions['E'].width = 30
+    else:
+        ws.merge_cells('A5:E5')
+        ws.cell(row=5, column=1, value="Sin datos de racionamiento cargados").font = Font(italic=True, color="888888")
+        ws.cell(row=5, column=1).alignment = Alignment(horizontal="center")
+
+    # 💾 DESCARGA
+    wb.save(buffer)
+    buffer.seek(0)
+    fecha_archivo = datetime.now().strftime("%Y%m%d_%H%M")
+
+    st.success("✅ Parte de Racionamiento generado")
+    st.download_button(
+        label="⬇️ DESCARGAR RACIONAMIENTO",
+        data=buffer,
+        file_name=f"Racionamiento_Escuadron_H_{fecha_archivo}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="secondary",
+        use_container_width=True
+    )
+# ==============================================================================
     # 🔹 SECCIÓN 3: PERSONAL QUE ALMUERZA
     ws['A18'] = "🍽️ PERSONAL QUE ALMUERZA"
     ws['A18'].font = Font(bold=True, size=13, color="1F4E78")
