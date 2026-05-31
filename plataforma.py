@@ -858,7 +858,10 @@ df = df.reset_index(drop=True)
 df = df.sort_values("ORDEN_LIMP").reset_index(drop=True)
 df["ORDEN_GENERAL"] = range(1, len(df) + 1)
 
-for nov in st.session_state.get("novedades_lista", []):
+# Validación y procesamiento
+lista_nov = st.session_state.get("novedades_lista", [])
+
+for nov in lista_nov:
     if not isinstance(nov, dict):
         continue
         
@@ -870,7 +873,8 @@ for nov in st.session_state.get("novedades_lista", []):
 
     if not alumno_df.empty:
         alumno = alumno_df.iloc[0]
-
+        
+    
         data_ausentes.append({
             "Orden": int(alumno.get("ORDEN_GENERAL", 0)),
             "Nombre": alumno.get("NOMBRE_COMPLETO", "S/N"),
