@@ -900,7 +900,7 @@ for orden, estado in st.session_state.estado_asistencia.items():
                 data_ausentes.append({
     "Orden": int(alumno["ORDEN_GENERAL"]),
     "Nombre": alumno["NOMBRE_COMPLETO"],
-    "Motivo": nov["estado"],
+    "Motivo": nov.get("estado", "S/D"),
     "Desde": nov["fecha_ini"],
     "Hasta": nov["fecha_fin"]
 })
