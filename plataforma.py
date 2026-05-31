@@ -17,103 +17,31 @@ from db_manager import (
     obtener_todos_contactos, guardar_contacto
 )
 st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout="wide")
+# ... imports arriba ...
+
+st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout="wide")
+# ↑↑↑ BUSCÁ ESTA LÍNEA ↑↑↑
 
 # ==============================================================================
-# 🎖️ ENCABEZADO INSTITUCIONAL + CSS MILITAR + RELOJ
+# 🎖️ PEGÁ EL BLOQUE INSTITUCIONAL ACÁ (justo después de set_page_config)
 # ==============================================================================
 st.markdown("""
 <style>
-/* === PALETA INSTITUCIONAL GNA === */
-:root {
-    --gna-dark: #161B15;
-    --gna-olive: #556B2F;
-    --gna-gold: #C4A000;
-    --gna-beige: #F5F5DC;
-    --gna-text: #FFFFFF;
-}
-
-/* === ESTILOS GENERALES === */
-.main {background-color: var(--gna-beige) !important;}
-.block-container {padding-top: 1.5rem !important; padding-bottom: 2rem !important;}
-h1, h2, h3, h4, h5, h6 {color: var(--gna-dark) !important; font-family: 'Courier New', monospace !important;}
-
-/* === MÉTRICAS === */
-[data-testid="stMetric"] {background: var(--gna-dark) !important; padding: 8px 12px !important; border-radius: 4px !important; border: 1px solid var(--gna-gold) !important;}
-[data-testid="stMetricValue"] {color: var(--gna-text) !important; font-weight: 700 !important; font-size: 1.1rem !important;}
-[data-testid="stMetricLabel"] {color: #A8B099 !important; font-size: 0.7rem !important; text-transform: uppercase !important; letter-spacing: 1px !important;}
-
-/* === BOTONES === */
-.stButton > button {
-    background-color: var(--gna-olive) !important;
-    color: var(--gna-text) !important;
-    border: 1px solid var(--gna-dark) !important;
-    font-weight: 600 !important;
-    border-radius: 4px !important;
-}
-.stButton > button:hover {
-    background-color: var(--gna-dark) !important;
-    border-color: var(--gna-gold) !important;
-}
-
-/* === ENCABEZADO STICKY === */
-.header-box {
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--gna-dark); color: var(--gna-text);
-    padding: 12px 20px; border-radius: 0 0 8px 8px;
-    border-bottom: 3px solid var(--gna-gold);
-    font-family: 'Courier New', monospace; margin-bottom: 20px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-}
-.header-left {text-align: left; line-height: 1.3;}
-.header-left h2 {margin: 0; font-size: 1.1em; color: var(--gna-text) !important; letter-spacing: 2px;}
-.header-left p {margin: 3px 0 0; font-size: 0.9em; color: var(--gna-gold);}
-.header-right {text-align: right; font-size: 0.85em;}
-.header-right p {margin: 2px 0;}
-
-/* === SEMÁFORO Y TARJETAS === */
-.status-normal {background: #2e7d32 !important; color: white !important; font-weight: bold; padding: 8px 16px; border-radius: 4px; text-align: center;}
-.status-warning {background: #ed6c02 !important; color: white !important; font-weight: bold; padding: 8px 16px; border-radius: 4px; text-align: center;}
-.status-critical {background: #c62828 !important; color: white !important; font-weight: bold; padding: 8px 16px; border-radius: 4px; text-align: center;}
-
-/* === TABLAS === */
-.stDataFrame table th {background-color: var(--gna-dark) !important; color: var(--gna-text) !important;}
-.stDataFrame table td {font-size: 0.9rem !important;}
+/* ... todo el CSS ... */
 </style>
 """, unsafe_allow_html=True)
 
-# 🔹 ENCABEZADO VISUAL INSTITUCIONAL
 st.markdown("""
 <div class="header-box">
-    <div class="header-left">
-        <h2>REPÚBLICA ARGENTINA<br>GENDARMERÍA NACIONAL</h2>
-        <p style="color:#C4A000; font-weight:bold;">ESCUADRÓN H "CABO MARCELO GODOY"</p>
-        <p style="font-size:0.85em;">SISTEMA DE GESTIÓN DE PARTE DIARIO</p>
-    </div>
-    <div class="header-right">
-        <p>📅 <span id="date">--/--/----</span> | 🕒 <span id="clock">--:--:--</span></p>
-        <p>👤 Operador: Guardia de Prevención</p>
-    </div>
+<!-- ... encabezado HTML ... -->
 </div>
 """, unsafe_allow_html=True)
 
-# 🔹 RELOJ EN TIEMPO REAL (JS liviano)
 st.components.v1.html("""
 <script>
-function updateClock() {
-    const now = new Date();
-    document.getElementById('clock').textContent = now.toLocaleTimeString('es-AR');
-    document.getElementById('date').textContent = now.toLocaleDateString('es-AR', {
-        day:'2-digit', month:'2-digit', year:'numeric', weekday:'short'
-    });
-}
-setInterval(updateClock, 1000);
-updateClock();
+// ... reloj JS ...
 </script>
 """, height=0)
-
-# Separador visual
-st.markdown("<hr style='border-color: #556B2F; margin: 0 0 20px 0;'>", unsafe_allow_html=True)
-# ==============================================================================
 # ==============================================================================
 # 1. CARGA DE DATOS
 # ==============================================================================
