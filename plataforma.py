@@ -875,7 +875,7 @@ for nov in lista_nov:
         data_ausentes.append({
             "Orden": int(alumno.get("ORDEN_GENERAL", 0)),
             "Nombre": alumno.get("NOMBRE_COMPLETO", "S/N"),
-            "Motivo": nov.get("estado", "S/D"),
+            "Motivo": estado if estado else "S/D",
             "Desde": nov.get("fecha_ini", ""),
             "Hasta": nov.get("fecha_fin", ""),
         })
@@ -887,24 +887,24 @@ for orden, estado in st.session_state.estado_asistencia.items():
         # Evitar duplicados si ya tiene novedad cargada
         ya_existe = any(
             nov["orden"] == orden
-for nov in st.session_state.novedades_lista
+            for nov in st.session_state.novedades_lista
         )
 
-    if not ya_existe:
+        if not ya_existe:
 
             alumno_df = df[df['ORDEN_LIMP'] == orden]
 
-    if not alumno_df.empty:
+            if not alumno_df.empty:
 
                 alumno = alumno_df.iloc[0]
 
                 data_ausentes.append({
-    "Orden": int(alumno["ORDEN_GENERAL"]),
-    "Nombre": alumno["NOMBRE_COMPLETO"],
-    "Motivo": nov.get("estado", "S/D"),
-    "Desde": nov["fecha_ini"],
-    "Hasta": nov["fecha_fin"]
-})
+                    "Orden": int(alumno["ORDEN_GENERAL"]),
+                    "Nombre": alumno["NOMBRE_COMPLETO"],
+                    "Motivo": estado if estado else "S/D",
+                    "Desde": alumno["fecha_ini"],
+                    "Hasta": alumno["fecha_fin"]
+                })
 
 df_ausentes = pd.DataFrame(data_ausentes)
 
