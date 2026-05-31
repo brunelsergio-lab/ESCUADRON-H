@@ -922,15 +922,21 @@ if not df_ausentes.empty:
 else:
     st.success("Sin personal ausente.")
 # ==============================================================================
-# 5. EXPORTAR EXCEL (REPORTE EJECUTIVO FORMAL CON AULA)
+# 5. BOTÓN Y LÓGICA DE EXPORTACIÓN (REPORTE EJECUTIVO)
 # ==============================================================================
-if st.button("📥 GENERAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_container_width=True):
+if st.button("📥 PREPARAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_container_width=True):
+    import openpyxl
     from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from datetime import datetime
+    from io import BytesIO
+    
+    # Crear buffer en memoria (no se guarda en el servidor)
+    buffer = BytesIO()
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "PARTE DIARIO EJECUTIVO"
 
-    # ️ ENCABEZADO PRINCIPAL
+    # 🏛️ ENCABEZADO
     ws.merge_cells('A1:F1')
     ws['A1'] = "PARTE DIARIO - ESCUADRÓN H"
     ws['A1'].font = Font(bold=True, size=18, color="FFFFFF")
@@ -938,64 +944,71 @@ if st.button("📥 GENERAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_conta
     ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
 
     ws.merge_cells('A2:F2')
-    ws['A2'] = f"Fecha: {st.session_state.fecha_reporte.strftime('%d/%m/%Y')} | Generado: {datetime.now().strftime('%H:%M')}"
+    fecha_rep = getattr(st.session_state, "fecha_reporte", datetime.now())
+    ws['A2'] = f"Fecha: {fecha_rep.strftime('%d/%m/%Y')} | Generado: {datetime.now().strftime('%H:%M')}"
     ws['A2'].font = Font(italic=True, size=11, color="555555")
     ws['A2'].alignment = Alignment(horizontal="center")
     ws.row_dimensions[1].height = 30
     ws.row_dimensions[2].height = 20
 
-    # 🔹 SECCIÓN 1: MÉTRICAS GENERALES
-    ws['A4'] = "📊 RESUMEN DE EFECTIVOS"
-    ws['A4'].font = Font(bold=True, size=13, color="1F4E78")
+    # 📋 ENCABEZADOS DE COLUMNA (Fila 4)
+    headers = ["ORDEN", "NOMBRE COMPLETO", "MOTIVO", "DESDE", "HASTA", "OBSERVACIONES"]
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=4, column=col, value=header)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="556B2F", end_color="556B2F", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), 
+                             top=Side(style="thin"), bottom=Side(style="thin"))
+
+    # 📊 CARGAR DATOS DE df_ausentes (empezando fila 5)
+    if not df_ausentes.empty:
+        for idx, row in df_ausentes.sort_values("Orden").iterrows():
+            row_num = 5 + idx
+            ws.cell(row=row_num, column=1, value=row["Orden"])
+            ws.cell(row=row_num, column=2, value=row["Nombre"])
+            ws.cell(row=row_num, column=3, value=row["Motivo"])
+            ws.cell(row=row_num, column=4, value=row["Desde"])
+            ws.cell(row=row_num, column=5, value=row["Hasta"])
+            ws.cell(row=row_num, column=6, value="")  # Observaciones vacías
+            
+            # Aplicar bordes y alineación a todas las celdas
+            for col in range(1, 7):
+                cell = ws.cell(row=row_num, column=col)
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+                cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), 
+                                     top=Side(style="thin"), bottom=Side(style="thin"))
+                
+                # Ajustar ancho de columnas
+                if col == 1:  # Orden
+                    ws.column_dimensions['A'].width = 8
+                elif col == 2:  # Nombre
+                    ws.column_dimensions['B'].width = 35
+                elif col == 3:  # Motivo
+                    ws.column_dimensions['C'].width = 20
+                elif col == 4:  # Desde
+                    ws.column_dimensions['D'].width = 12
+                elif col == 5:  # Hasta
+                    ws.column_dimensions['E'].width = 12
+                elif col == 6:  # Observaciones
+                    ws.column_dimensions['F'].width = 25
+
+    # 💾 GUARDAR EN BUFFER (no en disco)
+    wb.save(buffer)
+    buffer.seek(0)
     
-    metrics = [
-        ("TOTAL ESCUADRÓN", TOTAL_ESCUADRON),
-        ("DISPONIBLES", disponibles),
-        ("EN INSTITUTO", en_instituto),
-        ("FUERA DEL INSTITUTO", total_fuera)
-    ]
-    for i, (label, value) in enumerate(metrics):
-        row = 5 + i
-        ws.cell(row=row, column=1, value=label).font = Font(bold=True)
-        cell_val = ws.cell(row=row, column=2, value=value)
-        cell_val.font = Font(bold=True, size=12, color="1F4E78")
-        cell_val.alignment = Alignment(horizontal="center")
-        for c in range(1, 3):
-            ws.cell(row=row, column=c).border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                                                       top=Side(style="thin"), bottom=Side(style="thin"))
-
-    # 🔹 SECCIÓN 2: NOVEDADES REGISTRADAS (CON COLUMNA AULA)
-    ws['A10'] = "📝 NOVEDADES REGISTRADAS"
-    ws['A10'].font = Font(bold=True, size=13, color="1F4E78")
-
-    # ✅ AGREGAMOS "AULA" EN LA LISTA DE ENCABEZADOS
-    nov_headers = ["ORDEN", "NOMBRE", "AULA", "ESTADO", "DETALLE", "PERÍODO"]
-    for col, h in enumerate(nov_headers, 1):
-        cell = ws.cell(row=11, column=col, value=h)
-        cell.font = Font(bold=True, color="FFFFFF", size=10)
-        cell.fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center")
-        cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
-
-    if st.session_state.novedades_lista:
-        for i, nov in enumerate(st.session_state.novedades_lista):
-            row = 12 + i
-            ws.cell(row=row, column=1, value=nov['orden'])
-            ws.cell(row=row, column=2, value=nov['nombre'])
-            ws.cell(row=row, column=3, value=nov.get('aula', '-')) # ✅ AQUÍ SE AGREGA EL AULA
-            ws.cell(row=row, column=4, value=nov['estado'])
-            ws.cell(row=row, column=5, value=nov['detalle'])
-            ws.cell(row=row, column=6, value=f"{nov['fecha_ini']} a {nov['fecha_fin']}")
-            # Aplicar bordes y alineación a las 6 columnas
-            for c in range(1, 7):
-                ws.cell(row=row, column=c).border = Border(left=Side(style="thin"), right=Side(style="thin"),
-                                                           top=Side(style="thin"), bottom=Side(style="thin"))
-                # Alineación: Centro para números y estados, Izquierda para textos
-                ws.cell(row=row, column=c).alignment = Alignment(horizontal="center" if c in [1, 4, 6] else "left")
-    else:
-        ws.merge_cells('A12:F12')
-        ws.cell(row=12, column=1, value="Sin novedades registradas en la guardia").font = Font(italic=True, color="888888")
-        ws.cell(row=12, column=1).alignment = Alignment(horizontal="center")
+    # 📥 BOTÓN DE DESCARGA (aparece después de preparar)
+    fecha_archivo = datetime.now().strftime("%Y%m%d_%H%M")
+    st.success("✅ Reporte generado exitosamente")
+    
+    st.download_button(
+        label="⬇️ DESCARGAR EXCEL AHORA",
+        data=buffer,
+        file_name=f"Parte_Diario_Escuadron_H_{fecha_archivo}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        type="primary",
+        use_container_width=True
+    )
 
     # 🔹 SECCIÓN 3: PERSONAL QUE ALMUERZA
     ws['A18'] = "🍽️ PERSONAL QUE ALMUERZA"
