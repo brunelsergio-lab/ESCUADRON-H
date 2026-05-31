@@ -403,7 +403,18 @@ with tab_nov:
         st.markdown("### ⚙️ Detalles de Novedad")
         c1, c2 = st.columns(2)
         with c1:
-            opts = ["ART", "DAF", "LES", "SSD", "COMISIÓN", "AUTORIZADO"]
+            opts = [
+    "ART",
+    "DAF",
+    "LES",
+    "SSD",
+    "COMISIÓN",
+    "AUTORIZADO",
+    "ENTRANTE GUARDIA DIURNA",
+    "ENTRANTE GUARDIA NOCTURNA",
+    "DESCANSO DE GUARDIA"
+]
+ 
             current_estado = data.get('estado', "ART")
             idx_opts = opts.index(current_estado) if current_estado in opts else 0
             est = st.selectbox("Situación:", opts, index=idx_opts, key="sel_estado")
