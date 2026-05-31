@@ -946,8 +946,8 @@ if not df_ausentes.empty:
 else:
     st.success("Sin personal ausente.")
 # ==============================================================================
-    # 5. NUEVA GENERACIÓN PROFESIONAL PARTE DIARIO GENERAL (MODELO REAL)
-    # ==============================================================================
+# 5. NUEVA GENERACIÓN PROFESIONAL PARTE DIARIO GENERAL (MODELO REAL)
+# ==============================================================================
     st.divider()
     
     # Cálculos dinámicos de fuerza para el cuadro superior
