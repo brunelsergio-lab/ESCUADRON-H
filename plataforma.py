@@ -1010,16 +1010,15 @@ if st.button("📥 PREPARAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_cont
         use_container_width=True
     )
 # ==============================================================================
-# 6. PARTE DE RACIONAMIENTO (DESCARGA DIRECTA EN 1 CLICK)
+# 6. PARTE DE RACIONAMIENTO (DESCARGA DIRECTA CON DATOS REALES)
 # ==============================================================================
 
-# ⚠️ CRÍTICO: Ajustá esta línea con tu variable REAL de datos
-# Si usás DataFrame: df_raciones = st.session_state.get("df_personal", pd.DataFrame())
-# Si usás lista:    lista_raciones = st.session_state.get("lista_personal", [])
-df_raciones = st.session_state.get("df_personal", pd.DataFrame())
+# 🔹 FUENTE DE DATOS: Usamos 'df' (tu tabla principal) como respaldo seguro
+# Si tenés otra variable específica, cambiá 'df' por ella.
+datos_racion = st.session_state.get('df_raciones', df)
 
-if df_raciones.empty:
-    st.warning("️ No hay datos cargados. Completá la lista antes de generar el parte.")
+if datos_racion.empty:
+    st.error("⛔ NO HAY DATOS CARGADOS. El archivo saldría vacío.")
 else:
     from io import BytesIO
     import openpyxl
@@ -1031,7 +1030,7 @@ else:
     ws = wb.active
     ws.title = "RACIONAMIENTO"
 
-    # 🏛️ ENCABEZADO
+    # ️ ENCABEZADO
     ws.merge_cells('A1:E1')
     ws['A1'] = "PARTE DE RACIONAMIENTO - ESCUADRÓN H"
     ws['A1'].font = Font(bold=True, size=18, color="FFFFFF")
@@ -1043,7 +1042,7 @@ else:
     ws['A2'].font = Font(italic=True, size=11, color="555555")
     ws['A2'].alignment = Alignment(horizontal="center")
 
-    # 📋 ENCABEZADOS DE TABLA
+    # 📋 ENCABEZADOS
     headers = ["ORDEN", "NOMBRE COMPLETO", "RACIÓN", "TIPO", "OBSERVACIONES"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
@@ -1052,23 +1051,22 @@ else:
         cell.alignment = Alignment(horizontal="center", vertical="center")
         cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
 
-    # 📊 CARGAR DATOS REALES (Itera sobre tu DataFrame/Lista)
-    for idx, row in df_raciones.iterrows():
+    # 📊 CARGAR DATOS (Ajustá los nombres de columna si los tuyos son distintos)
+    for idx, row in datos_racion.iterrows():
         ws.append([
-            row.get("orden", row.get("ORDEN", "")),
-            row.get("nombre", row.get("NOMBRE_COMPLETO", "")),
-            row.get("racion", row.get("RACION", "COMPLETA")),
-            row.get("tipo", row.get("TIPO", "NORMAL")),
-            row.get("obs", row.get("OBSERVACIONES", ""))
+            row.get("ORDEN_GENERAL", row.get("orden", "")),
+            row.get("NOMBRE_COMPLETO", row.get("nombre", "")),
+            row.get("RACION", row.get("racion", "COMPLETA")),
+            row.get("TIPO", row.get("tipo", "NORMAL")),
+            row.get("OBS", row.get("obs", ""))
         ])
 
-    # Bordes y alineación para todas las filas llenas
+    # 🖼️ ESTILOS A FILAS
     for row in ws.iter_rows(min_row=5, max_row=ws.max_row, min_col=1, max_col=5):
         for cell in row:
             cell.alignment = Alignment(horizontal="center" if cell.column == 1 else "left", vertical="center")
             cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
 
-    # Ajuste de anchos
     ws.column_dimensions['A'].width = 8
     ws.column_dimensions['B'].width = 35
     ws.column_dimensions['C'].width = 15
@@ -1079,10 +1077,10 @@ else:
     wb.save(buffer)
     buffer.seek(0)
 
-    # 📥 BOTÓN DE DESCARGA INMEDIATA (1 solo click)
+    # 📥 BOTÓN ÚNICO DE DESCARGA (1 CLICK = ARCHIVO CON DATOS)
     fecha_archivo = datetime.now().strftime("%Y%m%d_%H%M")
     st.download_button(
-        label="📥 DESCARGAR PARTE DE RACIONAMIENTO AHORA",
+        label="📥 DESCARGAR PARTE DE RACIONAMIENTO (EXCEL)",
         data=buffer,
         file_name=f"Racionamiento_Escuadron_H_{fecha_archivo}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
