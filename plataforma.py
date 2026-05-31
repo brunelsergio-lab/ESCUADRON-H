@@ -1010,15 +1010,16 @@ if st.button("📥 PREPARAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_cont
         use_container_width=True
     )
 # ==============================================================================
-# 6. PARTE DE RACIONAMIENTO (DESCARGA DIRECTA CON DATOS REALES)
+# 6. PARTE DE RACIONAMIENTO (FORMATO EXACTO + SOLO DESIGNADOS)
 # ==============================================================================
 
-# 🔹 FUENTE DE DATOS: Usamos 'df' (tu tabla principal) como respaldo seguro
-# Si tenés otra variable específica, cambiá 'df' por ella.
-datos_racion = st.session_state.get('df_raciones', df)
+# ⚠️ AJUSTE CRÍTICO: Poné acá el nombre de tu variable donde guardás los seleccionados.
+# Ej: "personal_designado", "lista_racion", etc. Si no tenés filtro, usá 'df' directo.
+df_fuente = st.session_state.get("df_raciones", df)
 
-if datos_racion.empty:
-    st.error("⛔ NO HAY DATOS CARGADOS. El archivo saldría vacío.")
+# Validar si hay datos
+if df_fuente.empty:
+    st.error("⛔ No hay datos cargados en la lista.")
 else:
     from io import BytesIO
     import openpyxl
@@ -1030,64 +1031,77 @@ else:
     ws = wb.active
     ws.title = "RACIONAMIENTO"
 
-    # ️ ENCABEZADO
-    ws.merge_cells('A1:E1')
+    # 🎨 ESTILOS PREDEFINIDOS
+    font_title = Font(bold=True, size=14, color="1F4E78")
+    font_header = Font(bold=True, color="FFFFFF")
+    fill_header = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+    thin_border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+    align_center = Alignment(horizontal="center", vertical="center")
+    align_left = Alignment(horizontal="left", vertical="center")
+
+    # 🏛️ ENCABEZADO (FILA 1)
+    ws.merge_cells('A1:F1')
     ws['A1'] = "PARTE DE RACIONAMIENTO - ESCUADRÓN H"
-    ws['A1'].font = Font(bold=True, size=18, color="FFFFFF")
-    ws['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-    ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
+    ws['A1'].font = Font(bold=True, size=16, color="1F4E78")
+    ws['A1'].alignment = align_center
 
-    ws.merge_cells('A2:E2')
-    ws['A2'] = f"Fecha: {datetime.now().strftime('%d/%m/%Y')} | Generado: {datetime.now().strftime('%H:%M:%S')}"
-    ws['A2'].font = Font(italic=True, size=11, color="555555")
-    ws['A2'].alignment = Alignment(horizontal="center")
+    # 📅 FECHA Y TOTAL (FILA 2)
+    ws['A2'] = f"Fecha: {datetime.now().strftime('%d/%m/%Y')}"
+    ws['A2'].font = Font(bold=True, size=11)
+    
+    # Contar cuántos registros vamos a exportar
+    total_registros = len(df_fuente)
+    ws['B2'] = f"Total: {total_registros}"
+    ws['B2'].font = Font(bold=True, size=11)
+    ws['B2'].alignment = align_left # Alineado a la izquierda de su celda (B2)
 
-    # 📋 ENCABEZADOS
-    headers = ["ORDEN", "NOMBRE COMPLETO", "RACIÓN", "TIPO", "OBSERVACIONES"]
+    # 📋 ENCABEZADOS DE TABLA (FILA 4)
+    headers = ["ORDEN", "NOMBRE COMPLETO", "GRADO", "CE", "DNI", "AULA"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=header)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="556B2F", end_color="556B2F", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+        cell.font = font_header
+        cell.fill = fill_header
+        cell.alignment = align_center
+        cell.border = thin_border
 
-    # 📊 CARGAR DATOS (Ajustá los nombres de columna si los tuyos son distintos)
-    for idx, row in datos_racion.iterrows():
-        ws.append([
-            row.get("ORDEN_GENERAL", row.get("orden", "")),
-            row.get("NOMBRE_COMPLETO", row.get("nombre", "")),
-            row.get("RACION", row.get("racion", "COMPLETA")),
-            row.get("TIPO", row.get("tipo", "NORMAL")),
-            row.get("OBS", row.get("obs", ""))
-        ])
+    # 📊 CARGAR DATOS (SOLO LOS DESIGNADOS/FILTRADOS)
+    for idx, row in df_fuente.iterrows():
+        row_num = 5 + idx
+        # ⚠️ Ajustá los nombres de las columnas si en tu app se llaman distinto
+        ws.cell(row=row_num, column=1, value=row.get("ORDEN", row.get("orden", "")))
+        ws.cell(row=row_num, column=2, value=row.get("NOMBRE_COMPLETO", row.get("nombre", "")))
+        ws.cell(row=row_num, column=3, value=row.get("GRADO", row.get("grado", "")))
+        ws.cell(row=row_num, column=4, value=row.get("CE", row.get("ce", "")))
+        ws.cell(row=row_num, column=5, value=row.get("DNI", row.get("dni", "")))
+        ws.cell(row=row_num, column=6, value=row.get("AULA", row.get("aula", "")))
 
-    # 🖼️ ESTILOS A FILAS
-    for row in ws.iter_rows(min_row=5, max_row=ws.max_row, min_col=1, max_col=5):
-        for cell in row:
-            cell.alignment = Alignment(horizontal="center" if cell.column == 1 else "left", vertical="center")
-            cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+        # Aplicar bordes a toda la fila
+        for c in range(1, 7):
+            ws.cell(row=row_num, column=c).border = thin_border
 
-    ws.column_dimensions['A'].width = 8
-    ws.column_dimensions['B'].width = 35
-    ws.column_dimensions['C'].width = 15
-    ws.column_dimensions['D'].width = 12
-    ws.column_dimensions['E'].width = 30
+    # 📏 AJUSTE DE ANCHOS DE COLUMNA
+    ws.column_dimensions['A'].width = 10  # Orden
+    ws.column_dimensions['B'].width = 35  # Nombre
+    ws.column_dimensions['C'].width = 18  # Grado
+    ws.column_dimensions['D'].width = 10  # CE
+    ws.column_dimensions['E'].width = 12  # DNI
+    ws.column_dimensions['F'].width = 10  # Aula
 
-    # 💾 GUARDAR EN MEMORIA
+    # 💾 DESCARGA DIRECTA
     wb.save(buffer)
     buffer.seek(0)
-
-    # 📥 BOTÓN ÚNICO DE DESCARGA (1 CLICK = ARCHIVO CON DATOS)
     fecha_archivo = datetime.now().strftime("%Y%m%d_%H%M")
+
+    st.success(f"✅ Reporte listo. Se exportarán {total_registros} registros.")
     st.download_button(
-        label="📥 DESCARGAR PARTE DE RACIONAMIENTO (EXCEL)",
+        label="📥 DESCARGAR PARTE DE RACIONAMIENTO",
         data=buffer,
         file_name=f"Racionamiento_Escuadron_H_{fecha_archivo}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
         use_container_width=True
     )
-# ==============================================================================
+
 # ==============================================================================
     # 🔹 SECCIÓN 3: PERSONAL QUE ALMUERZA
     ws['A18'] = "🍽️ PERSONAL QUE ALMUERZA"
