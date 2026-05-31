@@ -887,14 +887,14 @@ for orden, estado in st.session_state.estado_asistencia.items():
         # Evitar duplicados si ya tiene novedad cargada
         ya_existe = any(
             nov["orden"] == orden
-            for nov in st.session_state.novedades_lista
+for nov in st.session_state.novedades_lista
         )
 
-        if not ya_existe:
+    if not ya_existe:
 
             alumno_df = df[df['ORDEN_LIMP'] == orden]
 
-            if not alumno_df.empty:
+    if not alumno_df.empty:
 
                 alumno = alumno_df.iloc[0]
 
