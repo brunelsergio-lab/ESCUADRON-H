@@ -605,14 +605,7 @@ with tab_alm:
         st.info("ℹ️ Aún no hay personal marcado para almorzar.")
 
     st.divider()
-    if st.button("🗑️ Vaciar lista completa", type="secondary", key="clear_all_lunch"):
-            for orden in list(st.session_state.lista_almuerzo):
-                quitar_almuerzo(FECHA_STR, orden)
-            st.session_state.lista_almuerzo.clear()
-            st.rerun()
-    else:
-        st.info("ℹ️ Aún no hay personal marcado para almorzar.")
-
+    
     # >>> AQUÍ EMPIEZA LO QUE PEGAS <<<
     st.divider()
     if st.session_state.lista_almuerzo:
