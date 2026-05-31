@@ -5,6 +5,7 @@ import openpyxl
 from openpyxl.styles import Font
 from datetime import datetime
 import os
+import io
 
 # 🔹 IMPORTS CORREGIDOS (NO OMITIR NINGUNA FUNCIÓN)
 from db_manager import (
@@ -604,8 +605,19 @@ with tab_alm:
         st.info("ℹ️ Aún no hay personal marcado para almorzar.")
 
     st.divider()
-    if st.button("📥 GENERAR PARTE DE RACIONAMIENTO", type="primary", use_container_width=True):
+    if st.button("🗑️ Vaciar lista completa", type="secondary", key="clear_all_lunch"):
+            for orden in list(st.session_state.lista_almuerzo):
+                quitar_almuerzo(FECHA_STR, orden)
+            st.session_state.lista_almuerzo.clear()
+            st.rerun()
+    else:
+        st.info("ℹ️ Aún no hay personal marcado para almorzar.")
+
+    # >>> AQUÍ EMPIEZA LO QUE PEGAS <<<
+    st.divider()
+    if st.session_state.lista_almuerzo:
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        # 1. Creamos el archivo Excel en memoria
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "RACIONAMIENTO"
@@ -643,9 +655,25 @@ with tab_alm:
             
         for col, w in zip("ABCDEF", [10, 35, 12, 12, 15, 12]): 
             ws.column_dimensions[col].width = w
-        output = f"RACIONAMIENTO_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
-        wb.save(output)
-        st.success(f"✅ Parte generado: **{output}**")
+        # 2. Guardamos el Excel en el buffer de memoria en vez de un archivo físico
+        buffer = io.BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        # Nombre dinámico del archivo para la descarga
+        nombre_archivo_excel = f"RACIONAMIENTO_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
+        # 3. El botón nativo de descarga directo
+        st.download_button(
+            label="📥 DESCARGAR PARTE DE RACIONAMIENTO",
+            data=buffer,
+            file_name=nombre_archivo_excel,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True
+        )
+    else:
+        # Si no hay nadie marcado, deshabilitamos la opción visualmente
+        st.button("📥 GENERAR PARTE DE RACIONAMIENTO", type="primary", use_container_width=True, disabled=True)
+
 
 # ==================== PLAN DE LLAMADA (CONTACTOS) ====================
 # --- TAB: PLAN DE LLAMADA ---
