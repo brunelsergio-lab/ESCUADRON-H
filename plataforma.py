@@ -853,27 +853,31 @@ with tab_res:
 
 data_ausentes = []
 
-# Generar orden correlativo 1..139 según posición en el Excel
+# Generar orden correlativo 1..N según posición en el Excel
 df = df.reset_index(drop=True)
 df = df.sort_values("ORDEN_LIMP").reset_index(drop=True)
-df["ORDEN_GENERAL"] = range(1, 140)
+df["ORDEN_GENERAL"] = range(1, len(df) + 1)
 
-for nov in st.session_state.novedades_lista:
+for nov in st.session_state.get("novedades_lista", []):
+    if not isinstance(nov, dict):
+        continue
+        
+    orden_limp = nov.get("orden")
+    if orden_limp is None:
+        continue
 
-    alumno_df = df[df['ORDEN_LIMP'] == nov['orden']]
+    alumno_df = df[df['ORDEN_LIMP'] == orden_limp]
 
     if not alumno_df.empty:
-
         alumno = alumno_df.iloc[0]
 
         data_ausentes.append({
-            "Orden": int(alumno["ORDEN_GENERAL"]),
-            "Nombre": alumno["NOMBRE_COMPLETO"],
-            "Motivo": nov["estado"],
-            "Desde": nov["fecha_ini"],
-            "Hasta": nov["fecha_fin"],
+            "Orden": int(alumno.get("ORDEN_GENERAL", 0)),
+            "Nombre": alumno.get("NOMBRE_COMPLETO", "S/N"),
+            "Motivo": nov.get("estado", "S/D"),
+            "Desde": nov.get("fecha_ini", ""),
+            "Hasta": nov.get("fecha_fin", ""),
         })
-
 # AUSENTES MANUALES
 for orden, estado in st.session_state.estado_asistencia.items():
 
