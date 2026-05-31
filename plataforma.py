@@ -876,38 +876,39 @@ for nov in lista_nov:
             "Orden": int(alumno.get("ORDEN_GENERAL", 0)),
             "Nombre": alumno.get("NOMBRE_COMPLETO", "S/N"),
             "Motivo": estado if estado else "S/D",
-            "Desde": nov.get("fecha_ini", ""),
-            "Hasta": nov.get("fecha_fin", ""),
+            "Desde": alumno.get("FECHA_INI", "S/D"),
+            "Hasta": alumno.get("FECHA_FIN", "S/D"),
         })
-# AUSENTES MANUALES
-for orden, estado in st.session_state.estado_asistencia.items():
+# ==============================================================================
+# PROCESAMIENTO DE AUSENTES (Limpio y Seguro)
+# ==============================================================================
+data_ausentes = []  # ⚠️ IMPORTANTE: Reiniciar lista para no acumular datos viejos
 
-    if estado == "AUSENTE":
+novedades = st.session_state.get("novedades_lista", [])
 
-        # Evitar duplicados si ya tiene novedad cargada
-        ya_existe = any(
-            nov["orden"] == orden
-            for nov in st.session_state.novedades_lista
-        )
+for nov in novedades:
+    # Extraemos datos directamente del diccionario 'nov'
+    orden_limp = nov.get("orden")
+    motivo_nov = nov.get("estado", "S/D")
+    fecha_ini = nov.get("fecha_ini", "")
+    fecha_fin = nov.get("fecha_fin", "")
+    
+    if orden_limp is not None:
+        # Buscamos al alumno en el DataFrame principal usando su orden
+        match = df[df['ORDEN_LIMP'] == orden_limp]
+        
+        if not match.empty:
+            alumno = match.iloc[0]
+            data_ausentes.append({
+                "Orden": int(alumno.get("ORDEN_GENERAL", 0)),
+                "Nombre": alumno.get("NOMBRE_COMPLETO", "S/N"),
+                "Motivo": motivo_nov,
+                "Desde": fecha_ini,
+                "Hasta": fecha_fin
+            })
 
-        if not ya_existe:
-
-            alumno_df = df[df['ORDEN_LIMP'] == orden]
-
-            if not alumno_df.empty:
-
-                alumno = alumno_df.iloc[0]
-
-                data_ausentes.append({
-                    "Orden": int(alumno["ORDEN_GENERAL"]),
-                    "Nombre": alumno["NOMBRE_COMPLETO"],
-                    "Motivo": estado if estado else "S/D",
-                    "Desde": alumno["fecha_ini"],
-                    "Hasta": alumno["fecha_fin"]
-                })
-
+# Creamos el DataFrame final con los ausentes encontrados
 df_ausentes = pd.DataFrame(data_ausentes)
-
 if not df_ausentes.empty:
     st.dataframe(
         df_ausentes.sort_values("Orden"),
