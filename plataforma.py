@@ -6,6 +6,9 @@ from openpyxl.styles import Font
 from datetime import datetime
 import os
 import io
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from datetime import datetime
 
 # 🔹 IMPORTS CORREGIDOS (NO OMITIR NINGUNA FUNCIÓN)
 from db_manager import (
@@ -943,89 +946,154 @@ if not df_ausentes.empty:
 else:
     st.success("Sin personal ausente.")
 # ==============================================================================
-# 5. BOTÓN Y LÓGICA DE EXPORTACIÓN (REPORTE EJECUTIVO)
-# ==============================================================================
-if st.button("📥 PREPARAR REPORTE EJECUTIVO (EXCEL)", type="primary", use_container_width=True):
-    import openpyxl
-    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-    from datetime import datetime
-    from io import BytesIO
+    # 5. NUEVA GENERACIÓN PROFESIONAL PARTE DIARIO GENERAL (MODELO REAL)
+    # ==============================================================================
+    st.divider()
     
-    # Crear buffer en memoria (no se guarda en el servidor)
-    buffer = BytesIO()
+    # Cálculos dinámicos de fuerza para el cuadro superior
+    total_efectivos = len(df)
+    total_novedades = len(st.session_state.get("novedades_lista", []))
+    presentes = total_efectivos - total_novedades
+
+    # Creamos el libro en memoria
+    buffer_general = io.BytesIO()
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "PARTE DIARIO EJECUTIVO"
+    ws.title = "PARTE"
+    ws.views.sheetView[0].showGridLines = True
 
-    # 🏛️ ENCABEZADO
-    ws.merge_cells('A1:F1')
-    ws['A1'] = "PARTE DIARIO - ESCUADRÓN H"
-    ws['A1'].font = Font(bold=True, size=18, color="FFFFFF")
-    ws['A1'].fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-    ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
+    # Fuentes y Estilos Universales (Idéntico a PARTE DIARIO MODELO)
+    font_titulo = Font(name="Calibri", size=14, bold=True, color="000000")
+    font_subseccion = Font(name="Calibri", size=11, bold=True, color="000000")
+    font_header = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+    font_datos = Font(name="Calibri", size=10, color="000000")
+    font_obs = Font(name="Calibri", size=10, italic=True, color="333333")
 
-    ws.merge_cells('A2:F2')
+    fill_verde_gendarme = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin', color='BFBFBF'), right=Side(style='thin', color='BFBFBF'),
+        top=Side(style='thin', color='BFBFBF'), bottom=Side(style='thin', color='BFBFBF')
+    )
+
+    # --- ENCABEZADO PRINCIPAL ---
     fecha_rep = getattr(st.session_state, "fecha_reporte", datetime.now())
-    ws['A2'] = f"Fecha: {fecha_rep.strftime('%d/%m/%Y')} | Generado: {datetime.now().strftime('%H:%M')}"
-    ws['A2'].font = Font(italic=True, size=11, color="555555")
-    ws['A2'].alignment = Alignment(horizontal="center")
+    fecha_str = fecha_rep.strftime('%d%b%y').upper()
+    ws.merge_cells('A1:J1')
+    ws['A1'] = f"PARTE DIARIO DEL ESCUADRÓN H - {fecha_str}"
+    ws['A1'].font = font_titulo
+    ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 30
-    ws.row_dimensions[2].height = 20
 
-    # 📋 ENCABEZADOS DE COLUMNA (Fila 4)
-    headers = ["ORDEN", "NOMBRE COMPLETO", "MOTIVO", "DESDE", "HASTA", "OBSERVACIONES"]
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=col, value=header)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="556B2F", end_color="556B2F", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-        cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), 
-                             top=Side(style="thin"), bottom=Side(style="thin"))
+    # --- CUADRO ESTADÍSTICO DE EFECTIVOS ---
+    ws['B3'] = "TOTAL"
+    ws['C3'] = "PRESENTES"
+    ws['D3'] = "AUSENTES"
+    ws['E3'] = "NOVEDADES"
 
-    # 📊 CARGAR DATOS DE df_ausentes (empezando fila 5)
-    if not df_ausentes.empty:
-        for idx, row in df_ausentes.sort_values("Orden").iterrows():
-            row_num = 5 + idx
-            ws.cell(row=row_num, column=1, value=row["Orden"])
-            ws.cell(row=row_num, column=2, value=row["Nombre"])
-            ws.cell(row=row_num, column=3, value=row["Motivo"])
-            ws.cell(row=row_num, column=4, value=row["Desde"])
-            ws.cell(row=row_num, column=5, value=row["Hasta"])
-            ws.cell(row=row_num, column=6, value="")  # Observaciones vacías
-            
-            # Aplicar bordes y alineación a todas las celdas
-            for col in range(1, 7):
-                cell = ws.cell(row=row_num, column=col)
-                cell.alignment = Alignment(horizontal="left", vertical="center")
-                cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), 
-                                     top=Side(style="thin"), bottom=Side(style="thin"))
-                
-                # Ajustar ancho de columnas
-                if col == 1:  # Orden
-                    ws.column_dimensions['A'].width = 8
-                elif col == 2:  # Nombre
-                    ws.column_dimensions['B'].width = 35
-                elif col == 3:  # Motivo
-                    ws.column_dimensions['C'].width = 20
-                elif col == 4:  # Desde
-                    ws.column_dimensions['D'].width = 12
-                elif col == 5:  # Hasta
-                    ws.column_dimensions['E'].width = 12
-                elif col == 6:  # Observaciones
-                    ws.column_dimensions['F'].width = 25
+    for col_letra in ['B3', 'C3', 'D3', 'E3']:
+        ws[col_letra].font = font_header
+        ws[col_letra].fill = fill_verde_gendarme
+        ws[col_letra].alignment = Alignment(horizontal="center", vertical="center")
 
-    # 💾 GUARDAR EN BUFFER (no en disco)
-    wb.save(buffer)
-    buffer.seek(0)
-    
-    # 📥 BOTÓN DE DESCARGA (aparece después de preparar)
-    fecha_archivo = datetime.now().strftime("%Y%m%d_%H%M")
-    st.success("✅ Reporte generado exitosamente")
-    
+    ws['B4'] = total_efectivos
+    ws['C4'] = presentes
+    ws['D4'] = total_novedades  # En tu modelo, los ausentes se corresponden con las novedades del personal
+    ws['E4'] = total_novedades
+
+    for col_letra in ['B4', 'C4', 'D4', 'E4']:
+        ws[col_letra].font = Font(name="Calibri", size=11, bold=True)
+        ws[col_letra].alignment = Alignment(horizontal="center", vertical="center")
+        ws[col_letra].border = thin_border
+    ws.row_dimensions[3].height = 20
+    ws.row_dimensions[4].height = 20
+
+    # --- TÍTULO DE SECCIÓN: NOVEDADES DEL PERSONAL ---
+    ws.cell(row=7, column=1, value="NOVEDADES DEL PERSONAL").font = font_subseccion
+
+    # --- CABECERAS DE LA TABLA DE NOVEDADES ---
+    headers_novedades = ["ORDEN", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "PRESENTE / AUSENTE", "DESDE", "HASTA", "AULA"]
+    for col_idx, text in enumerate(headers_novedades, 1):
+        cell = ws.cell(row=8, column=col_idx, value=text)
+        cell.font = font_header
+        cell.fill = fill_verde_gendarme
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[8].height = 25
+
+    # --- INYECCIÓN DE REGISTROS DE NOVEDADES ---
+    row_actual = 9
+    novedades_sistema = st.session_state.get("novedades_lista", [])
+
+    for nov in novedades_sistema:
+        orden_limp = nov.get("orden")
+        match = df[df['ORDEN_LIMP'] == orden_limp]
+        
+        # Si encontramos los datos filiatorios del gendarme en la base principal
+        grado_celda = match.iloc[0].get("GRADO", "") if not match.empty else ""
+        dni_celda = match.iloc[0].get("DNI", "") if not match.empty else ""
+        ce_celda = match.iloc[0].get("CE", "") if not match.empty else ""
+        aula_celda = match.iloc[0].get("AULA", "") if not match.empty else ""
+        nombre_celda = match.iloc[0].get("NOMBRE_COMPLETO", "S/N") if not match.empty else "S/N"
+
+        ws.cell(row=row_actual, column=1, value=orden_limp).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_actual, column=2, value=grado_celda).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_actual, column=3, value=nombre_celda)
+        ws.cell(row=row_actual, column=4, value=dni_celda).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_actual, column=5, value=ce_celda).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_actual, column=6, value=nov.get("estado", "S/D"))
+        ws.cell(row=row_actual, column=7, value="AUSENTE").alignment = Alignment(horizontal="center")
+        ws.cell(row=row_actual, column=8, value=nov.get("fecha_ini", "")).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_actual, column=9, value=nov.get("fecha_fin", "")).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_actual, column=10, value=aula_celda).alignment = Alignment(horizontal="center")
+        
+        for c in range(1, 11):
+            ws.cell(row=row_actual, column=c).font = font_datos
+            ws.cell(row=row_actual, column=c).border = thin_border
+        row_actual += 1
+
+    row_actual += 2  # Espacio de separación
+
+    # --- SECCIÓN: OBSERVACIONES GENERALES E INGRESOS ---
+    ws.cell(row=row_actual, column=1, value="OBSERVACIONES GENERALES E INGRESOS DE AULAS").font = font_subseccion
+    row_actual += 1
+
+    # Carga de horarios diferenciales cruzando tu base o tirando los por defecto del Modelo
+    try:
+        registro_horarios = obtener_horarios(FECHA_STR)
+    except NameError:
+        registro_horarios = None
+
+    if registro_horarios:
+        for item in registro_horarios:
+            linea_obs = f"• Ingreso horario diferencial {item['horario']} hs: {item['detalle_aulas']}."
+            ws.cell(row=row_actual, column=1, value=linea_obs).font = font_obs
+            row_actual += 1
+    else:
+        items_defecto = [
+            "• Ingreso horario diferencial 0600 a 0620 hs: Aulas 18 TM, 24 TM y 23 TT.",
+            "• Ingreso horario diferencial 0810 hs: Aulas 23 TM y 28 TM.",
+            "• Ingreso horario diferencial 0900 a 0915 hs: Aula 26 TM.",
+            "• Descanso servicio de armas nocturno: 32 ASP III Año.",
+            "• Ingreso diferencial AOP: Aula 7 TT y Aula 8 TT."
+        ]
+        for linea in items_defecto:
+            ws.cell(row=row_actual, column=1, value=linea).font = font_obs
+            row_actual += 1
+
+    # Ajuste proporcional de anchos de columna
+    anchos_columnas = {"A": 10, "B": 15, "C": 35, "D": 15, "E": 12, "F": 25, "G": 22, "H": 14, "I": 14, "J": 12}
+    for col_letra, ancho in anchos_columnas.items():
+        ws.column_dimensions[col_letra].width = ancho
+
+    # Empaquetado en memoria sin guardar archivos basura locales
+    wb.save(buffer_general)
+    buffer_general.seek(0)
+    nombre_parte_general = f"PARTE_DIARIO_ESCUADRON_H_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
+
+    # Botón definitivo de descarga directa
     st.download_button(
-        label="⬇️ DESCARGAR EXCEL AHORA",
-        data=buffer,
-        file_name=f"Parte_Diario_Escuadron_H_{fecha_archivo}.xlsx",
+        label="📊 DESCARGAR PARTE DIARIO GENERAL EJECUTIVO",
+        data=buffer_general,
+        file_name=nombre_parte_general,
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
         use_container_width=True
