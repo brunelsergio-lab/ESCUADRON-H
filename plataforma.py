@@ -229,9 +229,7 @@ with col_sync2:
 # ==============================================================================
 # 4. ESTRUCTURA DE PESTAÑAS (AL RAS DEL MARGEN)
 # ==============================================================================
-tab_config, tab_nov, tab_seg, tab_alm, tab_plan, tab_res = st.tabs([
-    "⚙️ Configuración", "📝 Novedades", "🔍 Seguimiento", "🍴 Almuerzo", "📞 Plan de Llamada", "📊 Resumen"
-])
+tab_nov, tab_res, tab_part = st.tabs(["📋 Novedades", "📊 Resumen", "🔍 Novedades Particulares"])
 
 # --- TAB: NOVEDADES PARTICULARES (CAMPÁÑAS MASIVAS) ---
 with tab_part:
