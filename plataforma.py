@@ -757,7 +757,7 @@ with tab_res:
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
     row_idx = 9
-    for nov in novedades_sistema:
+    for nov in st.session_state.novedades_lista:
         match = df[df['ORDEN_LIMP'] == nov.get("orden")]
         grado_c = match.iloc[0].get("GRADO", "") if not match.empty else ""
         dni_c = match.iloc[0].get("DNI", "") if not match.empty else ""
