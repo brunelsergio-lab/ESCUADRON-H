@@ -263,7 +263,7 @@ with tab_nov:
         with col_btn_p:
             if st.button("✅ MARCAR PRESENTE", type="primary", use_container_width=True, key="btn_pres_edit"):
                 actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                st.session_state.estado_asistencia[orden] = "PRESENTE"
+                st.session_state.estado_asistencia[int(orden)] = "PRESENTE"
                 import sqlite3
                 conn = sqlite3.connect("parte_diario.db")
                 conn.execute("DELETE FROM novedades WHERE orden=?", (int(orden),))
@@ -274,7 +274,7 @@ with tab_nov:
         with col_btn_a:
             if st.button("❌ MARCAR AUSENTE", type="secondary", use_container_width=True, key="btn_aus_edit"):
                 actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                st.session_state.estado_asistencia[orden] = "AUSENTE"
+                st.session_state.estado_asistencia[int(orden)] = "AUSENTE"
                 st.rerun()
     else:
         search = st.text_input("🔍 Buscar aspirante:", placeholder="Nombre, DNI o CE", key="search_nov")
@@ -300,7 +300,7 @@ with tab_nov:
             with col_btn_p:
                 if st.button("✅ PRESENTE", type="primary", use_container_width=True, key="btn_pres_reg"):
                     actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                    st.session_state.estado_asistencia[orden] = "PRESENTE"
+                    st.session_state.estado_asistencia[int(orden)] = "PRESENTE"
                     import sqlite3
                     conn = sqlite3.connect("parte_diario.db")
                     conn.execute("DELETE FROM novedades WHERE orden=?", (int(orden),))
@@ -311,7 +311,7 @@ with tab_nov:
             with col_btn_a:
                 if st.button("❌ AUSENTE", type="secondary", use_container_width=True, key="btn_aus_reg"):
                     actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                    st.session_state.estado_asistencia[orden] = "AUSENTE"
+                    st.session_state.estado_asistencia[int(orden)] = "AUSENTE"
                     st.rerun()
             with col_btn_c:
                 if st.button("🔄", use_container_width=True, key="btn_clear_sel"):
@@ -376,8 +376,8 @@ with tab_nov:
             with col_borrar:
                 if st.button("🗑️", key=f"del_{idx}"):
                     eliminar_novedad(nov['id'])
-                    st.session_state.estado_asistencia[nov['orden']] = "PRESENTE"
-                    actualizar_asistencia(FECHA_STR, nov['orden'], "PRESENTE")
+                    st.session_state.estado_asistencia[int(nov['orden'])] = "PRESENTE"
+                    actualizar_asistencia(FECHA_STR, int(nov['orden']), "PRESENTE")
                     st.session_state.novedades_lista = obtener_novedades()
                     st.rerun()
 # --- TAB: SEGUIMIENTO ---
