@@ -255,26 +255,24 @@ with tab_nov:
         nov = st.session_state.novedades_lista[edit_idx]
         st.info(f"Editando a: **{nov['nombre']}**")
         data = nov
-        orden = data["orden"]
+        orden = int(data["orden"]) # Forzamos entero para el presentismo
         nombre_asp = data["nombre"]
         estado_act = st.session_state.estado_asistencia.get(orden, "PRESENTE")
 
         col_btn_p, col_btn_a = st.columns(2)
         with col_btn_p:
             if st.button("✅ MARCAR PRESENTE", type="primary", use_container_width=True, key="btn_pres_edit"):
+                # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin borrar la novedad
                 actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                st.session_state.estado_asistencia[int(orden)] = "PRESENTE"
-                import sqlite3
-                conn = sqlite3.connect("parte_diario.db")
-                conn.execute("DELETE FROM novedades WHERE orden=?", (int(orden),))
-                conn.commit()
-                conn.close()
-                st.session_state.novedades_lista = obtener_novedades()
+                st.session_state.estado_asistencia[orden] = "PRESENTE"
+                st.success(f"{nombre_asp} marcado como PRESENTE en el Parte Diario")
                 st.rerun()
         with col_btn_a:
             if st.button("❌ MARCAR AUSENTE", type="secondary", use_container_width=True, key="btn_aus_edit"):
+                # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin borrar la novedad
                 actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                st.session_state.estado_asistencia[int(orden)] = "AUSENTE"
+                st.session_state.estado_asistencia[orden] = "AUSENTE"
+                st.error(f"{nombre_asp} marcado como AUSENTE en el Parte Diario")
                 st.rerun()
     else:
         search = st.text_input("🔍 Buscar aspirante:", placeholder="Nombre, DNI o CE", key="search_nov")
@@ -292,26 +290,24 @@ with tab_nov:
 
         if st.session_state.sel_nov:
             data = st.session_state.sel_nov
-            orden = data["ORDEN_LIMP"]
+            orden = int(data["ORDEN_LIMP"]) # Forzamos entero para el presentismo
             nombre_asp = data.get('NOMBRE_COMPLETO', data.get('nombre', 'Aspirante'))
             estado_act = st.session_state.estado_asistencia.get(orden, "PRESENTE")
 
             col_btn_p, col_btn_a, col_btn_c = st.columns([2, 2, 1])
             with col_btn_p:
                 if st.button("✅ PRESENTE", type="primary", use_container_width=True, key="btn_pres_reg"):
+                    # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin tocar la base de novedades
                     actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                    st.session_state.estado_asistencia[int(orden)] = "PRESENTE"
-                    import sqlite3
-                    conn = sqlite3.connect("parte_diario.db")
-                    conn.execute("DELETE FROM novedades WHERE orden=?", (int(orden),))
-                    conn.commit()
-                    conn.close()
-                    st.session_state.novedades_lista = obtener_novedades()
+                    st.session_state.estado_asistencia[orden] = "PRESENTE"
+                    st.success(f"{nombre_asp} marcado como PRESENTE")
                     st.rerun()
             with col_btn_a:
                 if st.button("❌ AUSENTE", type="secondary", use_container_width=True, key="btn_aus_reg"):
+                    # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin tocar la base de novedades
                     actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                    st.session_state.estado_asistencia[int(orden)] = "AUSENTE"
+                    st.session_state.estado_asistencia[orden] = "AUSENTE"
+                    st.error(f"{nombre_asp} marcado como AUSENTE")
                     st.rerun()
             with col_btn_c:
                 if st.button("🔄", use_container_width=True, key="btn_clear_sel"):
@@ -365,19 +361,22 @@ with tab_nov:
         for idx, nov in enumerate(st.session_state.novedades_lista):
             col_datos, col_edit, col_borrar = st.columns([6, 1, 1])
             with col_datos:
-                # CORRECCIÓN AQUÍ: Limpiamos las etiquetas html eliminando las strings '<span>' y '</span>' de la visualización
                 est_limpio = str(nov['estado']).replace("<span>", "").replace("</span>", "")
-                st.markdown(f"**{nov['nombre']}** | **[{est_limpio}]** | DNI: {nov['dni']} | Aula: {nov['aula']}")
-                st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {nov['detalle']}")
+                
+                # Buscamos el estado de presentismo real para mostrarlo al lado del nombre
+                asis_actual = st.session_state.estado_asistencia.get(int(nov['orden']), "AUSENTE")
+                color_asis = "🟢 PRESENTE" if asis_actual == "PRESENTE" else "🔴 AUSENTE"
+                
+                st.markdown(f"**{nov['nombre']}** | **[{est_limpio}]** | {color_asis} | Aula: {nov['aula']}")
+                st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {nov['detalle']} (DNI: {nov['dni']})")
             with col_edit:
                 if st.button("✏️", key=f"edit_{idx}"):
                     st.session_state.editando_idx = idx
                     st.rerun()
             with col_borrar:
                 if st.button("🗑️", key=f"del_{idx}"):
+                    # Aquí el usuario SÍ quiere borrar explícitamente la novedad con el tacho de basura
                     eliminar_novedad(nov['id'])
-                    st.session_state.estado_asistencia[int(nov['orden'])] = "PRESENTE"
-                    actualizar_asistencia(FECHA_STR, int(nov['orden']), "PRESENTE")
                     st.session_state.novedades_lista = obtener_novedades()
                     st.rerun()
 # --- TAB: SEGUIMIENTO ---
