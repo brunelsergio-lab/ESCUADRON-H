@@ -76,10 +76,23 @@ if 'fecha_reporte' not in st.session_state:
     st.session_state.fecha_reporte = datetime.now().date()
 FECHA_STR = st.session_state.fecha_reporte.isoformat()
 
+# --- COPIÁ Y PEGÁ ESTO ACÁ ---
+if "config_aulas" not in st.session_state:
+    st.session_state.config_aulas = {
+        "18TM": {"horario": "0600 a 0620 hs", "tipo_ingreso": "Normal"},
+        "24TM": {"horario": "0600 a 0620 hs", "tipo_ingreso": "Normal"},
+        "23TT": {"horario": "0600 a 0620 hs", "tipo_ingreso": "Normal"},
+        "23TM": {"horario": "0810 hs", "tipo_ingreso": "Diferencial"},
+        "26TM": {"horario": "0900 a 0915 hs", "tipo_ingreso": "Diferencial"},
+        "28TM": {"horario": "0810 hs", "tipo_ingreso": "Diferencial"},
+        "7TT": {"horario": "Normal", "tipo_ingreso": "Normal"},
+        "8TM": {"horario": "Normal", "tipo_ingreso": "Normal"}
+    }
+# -----------------------------
+
 # Novedades y configuraciones
 if 'novedades_lista' not in st.session_state:
     st.session_state.novedades_lista = obtener_novedades()
-
 if 'estado_aulas' not in st.session_state:
     db_estado = obtener_estado_aulas(FECHA_STR)
     st.session_state.estado_aulas = {}
