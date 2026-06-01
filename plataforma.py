@@ -365,7 +365,9 @@ with tab_nov:
         for idx, nov in enumerate(st.session_state.novedades_lista):
             col_datos, col_edit, col_borrar = st.columns([6, 1, 1])
             with col_datos:
-                st.markdown(f"**{nov['nombre']}** <span>[{nov['estado']}]</span> | DNI: {nov['dni']} | Aula: {nov['aula']}")
+                # CORRECCIÓN AQUÍ: Limpiamos las etiquetas html eliminando las strings '<span>' y '</span>' de la visualización
+                est_limpio = str(nov['estado']).replace("<span>", "").replace("</span>", "")
+                st.markdown(f"**{nov['nombre']}** | **[{est_limpio}]** | DNI: {nov['dni']} | Aula: {nov['aula']}")
                 st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {nov['detalle']}")
             with col_edit:
                 if st.button("✏️", key=f"edit_{idx}"):
@@ -378,7 +380,6 @@ with tab_nov:
                     actualizar_asistencia(FECHA_STR, nov['orden'], "PRESENTE")
                     st.session_state.novedades_lista = obtener_novedades()
                     st.rerun()
-
 # --- TAB: SEGUIMIENTO ---
 with tab_seg:
     st.subheader("Control de Ingreso/Egreso - Seguimiento Diario")
