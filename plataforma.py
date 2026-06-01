@@ -519,15 +519,15 @@ with tab_plan:
     st.subheader("Plan de Llamada Interno de la Subunidad")
     st.info("Directorio de contactos de emergencia de la Guardia.")
 
-# --- TAB: RESUMEN (PROCESAMIENTO Y GENERACIÓN DE EXCEL GENERAL) ---
+# --- TAB: RESUMEN (PROCESAMIENTO, CÁLCULO DE AULAS Y UN SOLO BOTÓN) ---
 with tab_res:
-    st.subheader("📊 Generación del Parte Diario General")
+    st.subheader("📊 Reporte General y Control de Ingresos")
 
-    # 1.PROCESAMIENTO VIVO DE ASISTENCIA, NOVEDADES Y HORARIOS POR AULA
+    # 1. PROCESAMIENTO GENERAL DE ASISTENCIA Y CONFIGURACIÓN VIVA DE AULAS
     totales_aulas = {}
     novedades_dict = {int(n["orden"]): n for n in st.session_state.novedades_lista}
 
-    # Inicializar contadores por aula basados en la configuración viva
+    # Cargamos dinámicamente los horarios modificados por el usuario desde la pestaña de configuración
     for aula_id, conf in st.session_state.config_aulas.items():
         totales_aulas[aula_id] = {
             "total": 0,
@@ -537,14 +537,13 @@ with tab_res:
             "tipo_ingreso": conf.get("tipo_ingreso", "Normal")
         }
 
-    # Procesar cada aspirante cruzando su asistencia real e independiente
+    # Procesamos el universo total de aspirantes cruzando el presentismo vivo
     for _, row in df.iterrows():
         ord_val = int(row["ORDEN_LIMP"])
         aula_val = str(row["AULA"]).strip().upper()
         
         if aula_val in totales_aulas:
             totales_aulas[aula_val]["total"] += 1
-            # El presentismo manual manda sobre el reporte
             estado_asis = st.session_state.estado_asistencia.get(ord_val, "PRESENTE")
             
             if estado_asis == "PRESENTE":
@@ -552,17 +551,23 @@ with tab_res:
             else:
                 totales_aulas[aula_val]["ausentes"] += 1
 
-    # 2. AGRUPACIÓN DINÁMICA DE INGRESOS DIFERENCIALES CON CONTEO NUMÉRICO
+    # 2. AGRUPACIÓN VIVA DE INGRESOS DIFERENCIALES CON CONTEO DE PRESENTES
     grupos_horarios = {}
     for aula_id, datos in totales_aulas.items():
-        if datos["presentes"] > 0:  # Solo sumamos personal que efectivamente ingresa (Presentes)
+        if datos["presentes"] > 0:  # Registramos el horario dinámico real si hay personal presente
             llave_horario = datos["horario"]
             if llave_horario not in grupos_horarios:
                 grupos_horarios[llave_horario] = {"aulas": [], "personal_count": 0}
-            grupos_horarios[llave_horario]["aulas"].append(aula_id)
+            if aula_id not in grupos_horarios[llave_horario]["aulas"]:
+                grupos_horarios[llave_horario]["aulas"].append(aula_id)
             grupos_horarios[llave_horario]["personal_count"] += datos["presentes"]
 
-    # 3. CONSTRUCCIÓN DEL DOCUMENTO EXCEL (OpenPyXL)
+    # Vista previa en pantalla de las estadísticas de aulas
+    st.markdown("### Resumen de Efectivos por Aula")
+    df_previo = pd.DataFrame.from_dict(totales_aulas, orient='index').reset_index().rename(columns={'index': 'Aula'})
+    st.dataframe(df_previo, use_container_width=True)
+
+    # 3. ARMADO DEL EXCEL ÚNICO AL PRESIONAR EL BOTÓN
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from io import BytesIO
@@ -572,14 +577,14 @@ with tab_res:
     ws.title = "PARTE"
     ws.views.sheetView[0].showGridLines = True
 
-    # Encabezado Principal
+    # Estructura del Título del Reporte Único
     ws.merge_cells("A1:K1")
     ws["A1"] = f"PARTE DIARIO DEL ESCUADRÓN H - {FECHA_STR}"
     ws["A1"].font = Font(name="Calibri", size=14, bold=True)
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 30
 
-    # Cuadro de Fuerza Superior
+    # Cuadro Estadístico de Fuerza Principal
     headers_fuerza = ["TOTAL", "PRESENTES", "AUSENTES", "NOVEDADES"]
     for col_idx, text in enumerate(headers_fuerza, start=2):
         cell = ws.cell(row=3, column=col_idx, value=text)
@@ -600,7 +605,7 @@ with tab_res:
     ws.row_dimensions[3].height = 18
     ws.row_dimensions[4].height = 20
 
-    # Cabecera de la Tabla de Personal
+    # Encabezados de Columnas de la Planilla Única
     headers_tabla = ["ORDEN", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "PRESENTE / AUSENTE", "DESDE", "HASTA", "AULA"]
     for col_idx, text in enumerate(headers_tabla, start=1):
         cell = ws.cell(row=8, column=col_idx, value=text)
@@ -609,17 +614,15 @@ with tab_res:
         cell.alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[8].height = 22
 
-    # Volcado de filas (Recorre los 139 aspirantes manteniendo independencia de estados)
     linea_actual = 9
     border_fino = Border(
         left=Side(style='thin', color='DDDDDD'), right=Side(style='thin', color='DDDDDD'),
         top=Side(style='thin', color='DDDDDD'), bottom=Side(style='thin', color='DDDDDD')
     )
 
+    # Volcado completo e independiente de las filas de los aspirantes
     for _, row in df.iterrows():
         ord_int = int(row["ORDEN_LIMP"])
-        
-        # Consultar estados independientes correspondientes al número entero
         asis_real = st.session_state.estado_asistencia.get(ord_int, "PRESENTE")
         nov_viva = novedades_dict.get(ord_int, None)
         
@@ -634,7 +637,7 @@ with tab_res:
         ws.cell(row=linea_actual, column=5, value=row["CE"]).alignment = Alignment(horizontal="center")
         ws.cell(row=linea_actual, column=6, value=nov_texto).alignment = Alignment(horizontal="center")
         
-        # Celda de Presentismo Independiente con formato condicional soft
+        # Estado de asistencia guardado de forma independiente por el usuario
         cell_asis = ws.cell(row=linea_actual, column=7, value=asis_real)
         cell_asis.alignment = Alignment(horizontal="center")
         if asis_real == "AUSENTE":
@@ -656,18 +659,17 @@ with tab_res:
         ws.row_dimensions[linea_actual].height = 19
         linea_actual += 1
 
-    # 4. SECCIÓN OBSERVACIONES GENERALES E INGRESOS DIFERENCIALES VIVOS
+    # 4. OBSERVACIONES GENERALES E INGRESOS DIFERENCIALES VIVOS ACTUALIZADOS
     linea_actual += 2
     obs_label = ws.cell(row=linea_actual, column=1, value="OBSERVACIONES GENERALES E INGRESOS")
     obs_label.font = Font(name="Calibri", size=11, bold=True)
     linea_actual += 1
 
-    # Renderizar ingresos basados puramente en la configuración de la pestaña Configuración
+    # Escribe los horarios reales e indica cuántos alumnos presentes ingresan en cada bloque horario
     for horario, datos in grupos_horarios.items():
         aulas_str = ", ".join(sorted(datos["aulas"]))
         count_pers = datos["personal_count"]
         
-        # Formato dinámico: Ingreso horario diferencial [HORARIO]: Aulas [X] (Total: [N] Aspirantes Presentes).
         texto_ingreso = f"• Ingreso horario diferencial {horario}: Aulas {aulas_str} (Total: {count_pers} Aspirantes Presentes)."
         
         cell_ingreso = ws.cell(row=linea_actual, column=1, value=texto_ingreso)
@@ -675,7 +677,7 @@ with tab_res:
         ws.merge_cells(start_row=linea_actual, start_column=1, end_row=linea_actual, end_column=10)
         linea_actual += 1
 
-    # Ajuste automático del ancho de las columnas para evitar cortes de texto
+    # Ajuste automático del ancho de celdas
     for col in ws.columns:
         max_len = 0
         col_letter = openpyxl.utils.get_column_letter(col[0].column)
@@ -683,21 +685,21 @@ with tab_res:
             if cell.row > 1 and cell.value:
                 max_len = max(max_len, len(str(cell.value)))
         ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
-    ws.column_dimensions["C"].width = 32  # Ancho fijo para nombres
+    ws.column_dimensions["C"].width = 32
 
-    # 5. DESCARGA DEL ARCHIVO GENERADO
+    # 5. UN SOLO BOTÓN DE DESCARGA FINAL
     output = BytesIO()
     wb.save(output)
     output.seek(0)
 
+    st.markdown("---")
     st.download_button(
-        label="📥 Descargar Parte Diario General (Excel)",
+        label="📥 Descargar Parte Diario Completo (Excel Único)",
         data=output,
         file_name=f"PARTE_DIARIO_ESCUADRÓN_H_{FECHA_STR}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
-
     # ==============================================================================
     # 5. GENERACIÓN PROFESIONAL EXCEL MILITAR DEL PARTE DIARIO (AL RAS DEL MARGEN)
     # ==============================================================================
