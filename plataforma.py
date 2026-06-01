@@ -704,7 +704,7 @@ with tab_res:
     st.divider()
     
     total_efectivos = len(df)
-    total_novedades = len(novedades_sistema)
+    total_novedades = len(st.session_state.novedades_lista)
     presentes = total_efectivos - total_novedades
 
     # Creamos el libro oficial
