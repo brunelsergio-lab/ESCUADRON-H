@@ -107,7 +107,7 @@ if 'sel_nov' not in st.session_state:
     st.session_state.sel_nov = None
 
 # ==============================================================================
-# 3. CÁLCULO DE MÉTRICAS - LÓGICA MAESTRA
+# 3. CÁLCULO DE MÉTRICAS - LÓGICA MAESTRA CORREGIDA
 # ==============================================================================
 st.session_state.novedades_lista = obtener_novedades()
 st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
@@ -119,54 +119,82 @@ dia_actual = DIAS_SEMANA_ES[dia_actual_idx] if dia_actual_idx < 5 else "lunes"
 horarios_hoy = obtener_todos_horarios_dia(dia_actual)
 asistencia_manual = obtener_asistencia(FECHA_STR)
 
-# Clasificación de novedades
-entrantes_guardia_diurna = set()
-entrantes_guardia_nocturna = set()
-ausentes_con_novedad = set()
-comision_autorizados = set()
+# Función auxiliar para validar si una novedad está activa en la fecha del reporte
+def es_novedad_activa(nov, fecha_rep):
+    try:
+        from datetime import datetime as dt
+        fi = dt.strptime(nov['fecha_ini'], '%d%b%y').date()
+        ff = dt(2099, 12, 31).date() if nov['fecha_fin'] == "N/O" else dt.strptime(nov['fecha_fin'], '%d%b%y').date()
+        return fi <= fecha_rep <= ff
+    except:
+        return True
 
-ESTADOS_AUSENCIA = ['ART', 'DAF', 'LES', 'SSD']
-ESTADOS_FUERA = ['COMISIÓN', 'AUTORIZADO']
+novedades_dict = {int(n['orden']): n for n in st.session_state.novedades_lista}
 
-for nov in st.session_state.novedades_lista:
-    orden = int(nov['orden'])
-    estado = nov['estado']
-    if estado == 'ENTRANTE GUARDIA DIURNA':
-        entrantes_guardia_diurna.add(orden)
-    elif estado == 'ENTRANTE GUARDIA NOCTURNA':
-        entrantes_guardia_nocturna.add(orden)
-    elif estado in ESTADOS_AUSENCIA:
-        ausentes_con_novedad.add(orden)
-    elif estado in ESTADOS_FUERA:
-        comision_autorizados.add(orden)
+# Contadores
+presentes_escuadron_count = 0
+presentes_instituto_count = 0
+ausentes_count = 0
+total_entrantes_gd = 0
 
-# Cálculos finales
-total_ausentes_manuales = {o for o, e in asistencia_manual.items() if e == "AUSENTE"}
-presentes_forzados = {o for o, e in asistencia_manual.items() if e == "PRESENTE"}
+for _, row in df.iterrows():
+    orden = int(row['ORDEN_LIMP'])
+    estado_manual = asistencia_manual.get(orden, None)
+    
+    # 1. PRIORIDAD ABSOLUTA: Lo que marcaste manualmente en los botones
+    if estado_manual == "PRESENTE_ESCUADRON":
+        presentes_escuadron_count += 1
+    elif estado_manual == "PRESENTE_INSTITUTO":
+        presentes_instituto_count += 1
+        total_entrantes_gd += 1 # Sumamos a la métrica de Guardia Diurna/Instituto
+    elif estado_manual == "AUSENTE":
+        ausentes_count += 1
+    else:
+        # 2. SECUNDARIO: Si no hay marca manual, evaluamos la novedad activa
+        if orden in novedades_dict:
+            nov = novedades_dict[orden]
+            if es_novedad_activa(nov, st.session_state.fecha_reporte):
+                estado_nov = nov['estado']
+                if estado_nov in ['ART', 'DAF', 'LES', 'SSD']:
+                    ausentes_count += 1
+                elif estado_nov == 'ENTRANTE GUARDIA DIURNA':
+                    presentes_instituto_count += 1
+                    total_entrantes_gd += 1
+                else:
+                    # COMISIÓN, AUTORIZADO, etc. se consideran en el escuadrón a menos que se marque manual lo contrario
+                    presentes_escuadron_count += 1
+            else:
+                presentes_escuadron_count += 1
+        else:
+            # Sin novedad y sin manual -> PRESENTE EN ESCUADRÓN por defecto
+            presentes_escuadron_count += 1
 
-# Ausentes totales = (novedad + manual) - forzados a presente
-total_ausentes = (ausentes_con_novedad | total_ausentes_manuales) - presentes_forzados
+# Totales finales para la interfaz
+presentes_en_instituto = presentes_escuadron_count + presentes_instituto_count
+presentes_en_escuadron = presentes_escuadron_count
+total_ausentes = ausentes_count
 
-total_entrantes_gd = len(entrantes_guardia_diurna - presentes_forzados)
-total_entrantes_gn = len(entrantes_guardia_nocturna - presentes_forzados)
-total_comision = len(comision_autorizados - presentes_forzados)
-
-presentes_en_instituto = TOTAL_ESCUADRON - len(total_ausentes)
-presentes_en_escuadron = presentes_en_instituto - total_entrantes_gd
-
+# Cálculo de ubicación física (solo para los que están en el escuadrón)
 en_instituto = 0
 fuera_por_aula = 0
 for _, row in df.iterrows():
     orden = row['ORDEN_LIMP']
     aula = row['AULA']
-    if orden in total_ausentes: continue
-    if orden in entrantes_guardia_diurna: continue
+    # Solo contamos movimiento si está presente en el escuadrón
+    if orden in novedades_dict and es_novedad_activa(novedades_dict[orden], st.session_state.fecha_reporte):
+        if novedades_dict[orden]['estado'] == 'ENTRANTE GUARDIA DIURNA':
+            continue # No cuentan para movimiento de aulas
+            
+    estado_asist = asistencia_manual.get(orden, None)
+    if estado_asist == "AUSENTE" or estado_asist == "PRESENTE_INSTITUTO":
+        continue
+        
     if st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO') == 'EN INSTITUTO':
         en_instituto += 1
     else:
         fuera_por_aula += 1
 
-total_fuera = fuera_por_aula + len(total_ausentes)
+total_fuera = fuera_por_aula + total_ausentes
 
 # Guardar en session state
 st.session_state.dia_actual = dia_actual
@@ -175,9 +203,6 @@ st.session_state.total_ausentes = total_ausentes
 st.session_state.presentes_en_escuadron = presentes_en_escuadron
 st.session_state.presentes_en_instituto = presentes_en_instituto
 st.session_state.total_entrantes_gd = total_entrantes_gd
-st.session_state.total_entrantes_gn = total_entrantes_gn
-st.session_state.total_comision = total_comision
-
 # ==============================================================================
 # 4. INTERFAZ: BARRA SUPERIOR Y MÉTRICAS
 # ==============================================================================
@@ -284,19 +309,6 @@ with tab_nov:
         data = nov
         orden = int(data["orden"])
         nombre_asp = data["nombre"]
-        estado_act = asistencia_manual.get(orden, "PRESENTE")
-
-        col_btn_p, col_btn_a = st.columns(2)
-        with col_btn_p:
-            if st.button("✅ MARCAR PRESENTE", type="primary", use_container_width=True, key="btn_pres_edit"):
-                actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                st.success(f"{nombre_asp} marcado como PRESENTE")
-                st.rerun()
-        with col_btn_a:
-            if st.button("❌ MARCAR AUSENTE", type="secondary", use_container_width=True, key="btn_aus_edit"):
-                actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                st.error(f"{nombre_asp} marcado como AUSENTE")
-                st.rerun()
     else:
         search = st.text_input("🔍 Buscar aspirante:", placeholder="Nombre, DNI o CE", key="search_nov")
         if search.strip():
@@ -316,24 +328,36 @@ with tab_nov:
             orden = int(data["ORDEN_LIMP"])
             nombre_asp = data.get('NOMBRE_COMPLETO', data.get('nombre', 'Aspirante'))
 
-            col_btn_p, col_btn_a, col_btn_c = st.columns([2, 2, 1])
-            with col_btn_p:
-                if st.button("✅ PRESENTE", type="primary", use_container_width=True, key="btn_pres_reg"):
-                    actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                    st.success(f"{nombre_asp} marcado como PRESENTE")
-                    st.rerun()
-            with col_btn_a:
-                if st.button("❌ AUSENTE", type="secondary", use_container_width=True, key="btn_aus_reg"):
-                    actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                    st.error(f"{nombre_asp} marcado como AUSENTE")
-                    st.rerun()
-            with col_btn_c:
-                if st.button("🔄", use_container_width=True, key="btn_clear_sel"):
-                    st.session_state.sel_nov = None
-                    st.rerun()
-
+    # =========================================================================
+    # SECCIÓN DE PRESENTISMO (3 ESTADOS)
+    # =========================================================================
     if data is not None:
-        st.markdown("### ⚙️ Detalles de Novedad")
+        st.markdown("### 🎯 1. Definir Estado de Presentismo")
+        st.caption("Seleccione dónde se encuentra físicamente el aspirante. Esto afecta directamente las métricas del parte.")
+        
+        col_btn_pe, col_btn_pi, col_btn_a = st.columns(3)
+        with col_btn_pe:
+            if st.button("🟢 PRESENTE EN ESCUADRÓN", type="primary", use_container_width=True, key="btn_pe_reg" if not es_edicion else "btn_pe_edit"):
+                actualizar_asistencia(FECHA_STR, orden, "PRESENTE_ESCUADRON")
+                st.success(f"{nombre_asp} marcado como PRESENTE EN ESCUADRÓN")
+                st.rerun()
+        with col_btn_pi:
+            if st.button("🏛️ PRESENTE EN INSTITUTO", type="secondary", use_container_width=True, key="btn_pi_reg" if not es_edicion else "btn_pi_edit"):
+                actualizar_asistencia(FECHA_STR, orden, "PRESENTE_INSTITUTO")
+                st.info(f"{nombre_asp} marcado como PRESENTE EN INSTITUTO (No suma al escuadrón)")
+                st.rerun()
+        with col_btn_a:
+            if st.button("🔴 AUSENTE", type="secondary", use_container_width=True, key="btn_aus_reg" if not es_edicion else "btn_aus_edit"):
+                actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
+                st.error(f"{nombre_asp} marcado como AUSENTE")
+                st.rerun()
+        
+        st.divider()
+
+        # =========================================================================
+        # SECCIÓN DE DETALLES DE LA NOVEDAD
+        # =========================================================================
+        st.markdown("### ⚙️ 2. Detalles de la Novedad")
         c1, c2 = st.columns(2)
         with c1:
             opts = ["ART", "DAF", "LES", "SSD", "COMISIÓN", "AUTORIZADO", "ENTRANTE GUARDIA DIURNA", "ENTRANTE GUARDIA NOCTURNA", "DESCANSO DE GUARDIA"]
@@ -353,10 +377,11 @@ with tab_nov:
         b1, b2 = st.columns([3, 1])
         with b1:
             if es_edicion:
-                if st.button("💾 Guardar Cambios", type="primary", use_container_width=True, key="btn_save_edit"):
+                if st.button("💾 Guardar Cambios de Novedad", type="primary", use_container_width=True, key="btn_save_edit"):
                     actualizar_novedad(data['id'], {"estado": est, "detalle": det.upper(), "fecha_ini": fi, "fecha_fin": ff})
                     st.session_state.novedades_lista = obtener_novedades()
                     st.session_state.editando_idx = None
+                    st.success("✅ Novedad actualizada")
                     st.rerun()
             else:
                 if st.button("💾 Grabar Novedad", use_container_width=True, key="btn_save_new"):
@@ -365,25 +390,32 @@ with tab_nov:
                         "dni": data["DNI"], "ce": data["CE"], "aula": data["AULA"], "estado": est,
                         "detalle": det.upper(), "fecha_ini": fi, "fecha_fin": ff
                     })
-                    # Al grabar novedad, marcar automáticamente como ausente en asistencia manual
-                    actualizar_asistencia(FECHA_STR, int(data["ORDEN_LIMP"]), "AUSENTE")
+                    # Auto-marcar presentismo según la novedad si el usuario no lo hizo manualmente antes
+                    asistencia_actual = obtener_asistencia(FECHA_STR).get(orden)
+                    if asistencia_actual is None:
+                        if est == 'ENTRANTE GUARDIA DIURNA':
+                            actualizar_asistencia(FECHA_STR, orden, "PRESENTE_INSTITUTO")
+                        else:
+                            actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
+                    
                     st.session_state.novedades_lista = obtener_novedades()
                     st.session_state.sel_nov = None
+                    st.success("✅ Novedad registrada y presentismo actualizado")
                     st.rerun()
         with b2:
-            if st.button("🚫 Cancelar", use_container_width=True, key="btn_cancel"):
+            if st.button("🚫 Cancelar / Limpiar", use_container_width=True, key="btn_cancel"):
                 st.session_state.editando_idx = None
                 st.session_state.sel_nov = None
                 st.rerun()
 
-        # ==============================================================================
-    # 📋 TABLA DE NOVEDADES ORDENADA
-    # ==============================================================================
+    # =========================================================================
+    # TABLA DE NOVEDADES ORDENADA
+    # =========================================================================
+    st.divider()
     if st.session_state.novedades_lista:
         st.subheader("📋 Novedades Registradas")
-        st.info("💡 Tabla ordenada por: **Estado ➔ Aula ➔ Número de Orden**")
+        st.info("💡 Tabla ordenada por: **Estado ➔ Aula ➔ Número deORDER**")
         
-        # 1. ORDENAR LAS NOVEDADES
         novedades_ordenadas = sorted(
             st.session_state.novedades_lista, 
             key=lambda x: (
@@ -393,12 +425,20 @@ with tab_nov:
             )
         )
         
-        # 2. CREAR DATAFRAME PARA VISUALIZACIÓN
         datos_tabla = []
         for idx, nov in enumerate(novedades_ordenadas):
             orden = int(nov.get('orden'))
-            asis_actual = asistencia_manual.get(orden, "AUSENTE")
-            estado_asis = "🟢 PRESENTE" if asis_actual == "PRESENTE" else "🔴 AUSENTE"
+            asis_actual = obtener_asistencia(FECHA_STR).get(orden, "SIN_MARCAR")
+            
+            if asis_actual == "PRESENTE_ESCUADRON":
+                estado_asis = "🟢 EN ESCUADRÓN"
+            elif asis_actual == "PRESENTE_INSTITUTO":
+                estado_asis = "🏛️ EN INSTITUTO"
+            elif asis_actual == "AUSENTE":
+                estado_asis = "🔴 AUSENTE"
+            else:
+                # Fallback si no hay marca manual, inferimos por la novedad
+                estado_asis = "🏛️ EN INSTITUTO" if nov.get('estado') == 'ENTRANTE GUARDIA DIURNA' else "🔴 AUSENTE"
             
             datos_tabla.append({
                 "N°": idx + 1,
@@ -416,14 +456,13 @@ with tab_nov:
         
         df_novedades = pd.DataFrame(datos_tabla)
         
-        # 3. MOSTRAR TABLA CON FORMATO
         st.dataframe(
             df_novedades,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "N°": st.column_config.NumberColumn("N°", help="Número de fila", width="small"),
-                "Orden": st.column_config.NumberColumn("Orden", help="Número de orden del aspirante"),
+                "N°": st.column_config.NumberColumn("N°", width="small"),
+                "Orden": st.column_config.NumberColumn("Orden", width="small"),
                 "Aula": st.column_config.TextColumn("Aula", width="small"),
                 "Grado": st.column_config.TextColumn("Grado", width="small"),
                 "Apellido y Nombre": st.column_config.TextColumn("Apellido y Nombre", width="medium"),
@@ -436,10 +475,8 @@ with tab_nov:
             }
         )
         
-        # 4. BOTONES DE ACCIÓN BAJO LA TABLA
         st.divider()
         st.markdown("#### 🔧 Acciones sobre Novedades")
-        
         col_sel1, col_sel2 = st.columns([3, 1])
         with col_sel1:
             opciones_novedades = [
@@ -459,12 +496,22 @@ with tab_nov:
             col_btn_edit, col_btn_del = st.columns(2)
             with col_btn_edit:
                 if st.button("✏️ Editar Novedad Seleccionada", type="primary", use_container_width=True):
-                    st.session_state.editando_idx = idx_seleccionado
+                    # Encontrar el índice real en la lista original no ordenada para editar correctamente
+                    idx_original = next((i for i, n in enumerate(st.session_state.novedades_lista) if n['id'] == nov_seleccionada['id']), None)
+                    st.session_state.editando_idx = idx_original
                     st.rerun()
             
             with col_btn_del:
                 if st.button("🗑️ Eliminar Novedad Seleccionada", type="secondary", use_container_width=True):
                     eliminar_novedad(nov_seleccionada['id'])
+                    
+                    # Limpieza de seguridad: borrar también el registro de asistencia manual para evitar "fantasmas"
+                    import sqlite3
+                    conn = sqlite3.connect("parte_diario.db")
+                    conn.execute(f"DELETE FROM asistencia_diaria WHERE fecha='{FECHA_STR}' AND orden={nov_seleccionada['orden']}")
+                    conn.commit()
+                    conn.close()
+                    
                     st.session_state.novedades_lista = obtener_novedades()
                     st.success(f"✅ Novedad de **{nov_seleccionada['nombre']}** eliminada")
                     st.rerun()
