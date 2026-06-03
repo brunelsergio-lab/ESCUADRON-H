@@ -376,24 +376,46 @@ with tab_nov:
                 st.session_state.sel_nov = None
                 st.rerun()
 
+        # ==============================================================================
+    # 📋 LISTADO DE NOVEDADES ORDENADO
+    # ==============================================================================
     if st.session_state.novedades_lista:
         st.subheader("📋 Novedades Registradas")
+        st.info("💡 Listado ordenado por: **Estado ➔ Aula ➔ Número de Orden**")
+        
+        # 1. ORDENAMOS la lista en el session_state para que la visualización y los índices de los botones coincidan perfectamente
+        st.session_state.novedades_lista = sorted(
+            st.session_state.novedades_lista, 
+            key=lambda x: (
+                x.get('estado', 'ZZZ'),          # Prioridad 1: Agrupa por tipo de novedad (ART, COMISIÓN, etc.)
+                x.get('aula', 'ZZZ'),            # Prioridad 2: Dentro del estado, agrupa por Aula
+                int(x.get('orden', 999))         # Prioridad 3: Dentro del aula, ordena por número de orden ascendente
+            )
+        )
+        
+        # 2. RENDERIZADO
         for idx, nov in enumerate(st.session_state.novedades_lista):
             col_datos, col_edit, col_borrar = st.columns([6, 1, 1])
             with col_datos:
                 est_limpio = str(nov['estado']).replace("<span>", "").replace("</span>", "")
+                
+                # Buscamos el estado de presentismo real para mostrarlo al lado del nombre
                 asis_actual = asistencia_manual.get(int(nov['orden']), "AUSENTE")
                 color_asis = "🟢 PRESENTE" if asis_actual == "PRESENTE" else "🔴 AUSENTE"
-                st.markdown(f"**{nov['nombre']}** | **[{est_limpio}]** | {color_asis} | Aula: {nov['aula']}")
-                st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {nov['detalle']} (DNI: {nov['dni']})")
+                
+                # Formato visual mejorado
+                st.markdown(f"**{nov['nombre']}** | **[{est_limpio}]** | {color_asis} | 🏫 Aula: **{nov['aula']}** | 🔢 Orden: **{nov['orden']}**")
+                st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | 📝 {nov['detalle']} (DNI: {nov['dni']})")
+            
             with col_edit:
-                if st.button("✏️", key=f"edit_{idx}"):
+                if st.button("✏️", key=f"edit_{idx}", help="Editar esta novedad"):
                     st.session_state.editando_idx = idx
                     st.rerun()
+            
             with col_borrar:
-                if st.button("🗑️", key=f"del_{idx}"):
+                if st.button("🗑️", key=f"del_{idx}", help="Eliminar esta novedad"):
                     eliminar_novedad(nov['id'])
-                    st.session_state.novedades_lista = obtener_novedades()
+                    st.session_state.novedades_lista = obtener_novedades() # Recargamos desde la BD
                     st.rerun()
 
 # --- TAB: SEGUIMIENTO ---
