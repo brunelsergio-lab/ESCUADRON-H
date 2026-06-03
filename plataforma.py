@@ -225,7 +225,124 @@ st.session_state.total_entrantes_gn = total_entrantes_gn
 st.session_state.total_comision = total_comision
 
 # ==============================================================================
-# 4. INTERFAZ: BARRA SUPERIOR Y MÉTRICAS VISUALES (ÚNICA)
+# 3. CÁLCULO DE MÉTRICAS - LÓGICA MAESTRA CORREGIDA Y SIMPLIFICADA
+# ==============================================================================
+st.session_state.novedades_lista = obtener_novedades()
+st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
+
+DIAS_SEMANA_ES = ["lunes", "martes", "miercoles", "jueves", "viernes"]
+dia_actual_idx = st.session_state.fecha_reporte.weekday()
+dia_actual = DIAS_SEMANA_ES[dia_actual_idx] if dia_actual_idx < 5 else "lunes"
+
+horarios_hoy = obtener_todos_horarios_dia(dia_actual)
+asistencia_manual = obtener_asistencia(FECHA_STR)
+
+def es_novedad_activa(nov, fecha_rep):
+    try:
+        from datetime import datetime as dt
+        fi = dt.strptime(nov['fecha_ini'], '%d%b%y').date()
+        ff = dt(2099, 12, 31).date() if nov['fecha_fin'] == "N/O" else dt.strptime(nov['fecha_fin'], '%d%b%y').date()
+        return fi <= fecha_rep <= ff
+    except:
+        return True
+
+novedades_dict = {int(n['orden']): n for n in st.session_state.novedades_lista}
+
+# Inicialización de contadores
+ausentes_count = 0
+presentes_escuadron_count = 0
+presentes_instituto_count = 0
+total_entrantes_gd = 0
+total_entrantes_gn = 0
+total_comision = 0
+
+for _, row in df.iterrows():
+    orden = int(row['ORDEN_LIMP'])
+    estado_manual = asistencia_manual.get(orden, None)
+    
+    # Verificar si tiene novedad activa
+    tiene_novedad_activa = False
+    tipo_novedad = ""
+    if orden in novedades_dict:
+        nov = novedades_dict[orden]
+        if es_novedad_activa(nov, st.session_state.fecha_reporte):
+            tiene_novedad_activa = True
+            tipo_novedad = nov['estado']
+
+    # 1. PRIORIDAD ABSOLUTA: Marca Manual
+    if estado_manual == "PRESENTE_ESCUADRON":
+        presentes_escuadron_count += 1
+    elif estado_manual == "PRESENTE_INSTITUTO":
+        presentes_instituto_count += 1
+        if tipo_novedad == 'ENTRANTE GUARDIA NOCTURNA':
+            total_entrantes_gn += 1
+        elif tipo_novedad in ['COMISIÓN', 'AUTORIZADO']:
+            total_comision += 1
+        else:
+            total_entrantes_gd += 1
+    elif estado_manual == "AUSENTE":
+        ausentes_count += 1
+    else:
+        # 2. SIN MARCA MANUAL: Dependemos de la novedad activa
+        if tiene_novedad_activa:
+            if tipo_novedad in ['ART', 'DAF', 'LES', 'SSD']:
+                ausentes_count += 1
+            elif tipo_novedad == 'ENTRANTE GUARDIA DIURNA':
+                presentes_instituto_count += 1
+                total_entrantes_gd += 1
+            elif tipo_novedad == 'ENTRANTE GUARDIA NOCTURNA':
+                presentes_instituto_count += 1
+                total_entrantes_gn += 1
+            elif tipo_novedad in ['COMISIÓN', 'AUTORIZADO']:
+                # CORRECCIÓN: Sumamos a ausentes para que cuadre con tu conteo total de novedades
+                ausentes_count += 1
+                total_comision += 1
+            else:
+                # Cualquier otra novedad no especificada cuenta como ausente del escuadrón
+                ausentes_count += 1
+        else:
+            # Sin novedad y sin marca manual -> PRESENTE EN ESCUADRÓN
+            presentes_escuadron_count += 1
+
+# Totales finales
+presentes_en_instituto = presentes_escuadron_count + presentes_instituto_count
+presentes_en_escuadron = presentes_escuadron_count
+total_ausentes = ausentes_count # Ahora sí cuadra con el total de novedades activas
+
+# Cálculo de ubicación física (solo para los que están activos en el escuadrón)
+en_instituto = 0
+fuera_por_aula = 0
+for _, row in df.iterrows():
+    orden = row['ORDEN_LIMP']
+    aula = row['AULA']
+    estado_asist = asistencia_manual.get(orden, None)
+    
+    if estado_asist in ["AUSENTE", "PRESENTE_INSTITUTO"]:
+        continue
+        
+    if orden in novedades_dict and es_novedad_activa(novedades_dict[orden], st.session_state.fecha_reporte):
+        if novedades_dict[orden]['estado'] in ['ENTRANTE GUARDIA DIURNA', 'ENTRANTE GUARDIA NOCTURNA']:
+            continue 
+
+    if st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO') == 'EN INSTITUTO':
+        en_instituto += 1
+    else:
+        fuera_por_aula += 1
+
+total_fuera = fuera_por_aula + total_ausentes
+
+# Guardar en session state
+st.session_state.dia_actual = dia_actual
+st.session_state.horarios_hoy = horarios_hoy
+st.session_state.total_ausentes = total_ausentes
+st.session_state.presentes_en_escuadron = presentes_en_escuadron
+st.session_state.presentes_en_instituto = presentes_en_instituto
+st.session_state.total_entrantes_gd = total_entrantes_gd
+st.session_state.total_entrantes_gn = total_entrantes_gn
+st.session_state.total_comision = total_comision
+
+# ==============================================================================
+# 4. INTERFAZ: BARRA SUPERIOR Y MÉTRICAS VISUALES (ÚNICA Y DEFINITIVA)
 # ==============================================================================
 st.markdown('<div class="sticky-bar">', unsafe_allow_html=True)
 st.markdown('<div class="header-title">ESCUADRÓN H "CABO MARCELO GODOY"</div>', unsafe_allow_html=True)
@@ -237,7 +354,7 @@ with c2:
               delta=f"-{st.session_state.total_ausentes} aus." if st.session_state.total_ausentes > 0 else None)
 with c3: 
     st.metric("EN ESCUADRÓN", st.session_state.presentes_en_escuadron, 
-              help="Presentes en instituto menos entrantes guardia diurna")
+              help="Presentes en instituto menos entrantes guardia")
 with c4: 
     st.metric("AUSENTES", st.session_state.total_ausentes, 
               delta_color="inverse" if st.session_state.total_ausentes > 0 else "normal")
@@ -256,7 +373,7 @@ st.divider()
 
 col_sync1, col_sync2 = st.columns(2)
 with col_sync1:
-    if st.button("🔄 Sincronizar Datos", key="sync_btn_unico_v3", use_container_width=True):
+    if st.button("🔄 Sincronizar Datos", key="sync_btn_unico_final", use_container_width=True):
         st.session_state.novedades_lista = obtener_novedades()
         st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
         st.session_state.estado_aulas = obtener_estado_aulas(FECHA_STR)
@@ -264,7 +381,7 @@ with col_sync1:
         st.rerun()
 
 with col_sync2:
-    if st.button("🚨 RESETEAR ASISTENCIA DEL DÍA", key="reset_asistencia_unico_v3", use_container_width=True):
+    if st.button("🚨 RESETEAR ASISTENCIA DEL DÍA", key="reset_asistencia_unico_final", use_container_width=True):
         import sqlite3
         conn = sqlite3.connect("parte_diario.db")
         conn.execute(f"DELETE FROM asistencia_diaria WHERE fecha='{FECHA_STR}'")
@@ -274,51 +391,6 @@ with col_sync2:
         st.rerun()
 
 st.divider()
-
-
-# ==============================================================================
-# 4. INTERFAZ: BARRA SUPERIOR Y MÉTRICAS
-# ==============================================================================
-st.markdown('<div class="sticky-bar">', unsafe_allow_html=True)
-st.markdown('<div class="header-title">ESCUADRÓN H "CABO MARCELO GODOY"</div>', unsafe_allow_html=True)
-
-c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
-with c1: st.metric("TOTAL", TOTAL_ESCUADRON)
-with c2: 
-    # CORREGIDO: total_ausentes ya es un número, no usamos len()
-    st.metric("EN INSTITUTO", presentes_en_instituto, delta=f"-{total_ausentes} aus." if total_ausentes > 0 else None)
-with c3: 
-    st.metric("EN ESCUADRÓN", presentes_en_escuadron, help="Presentes en instituto menos entrantes guardia diurna")
-with c4: 
-    st.metric("AUSENTES", total_ausentes, delta_color="inverse" if total_ausentes > 0 else "normal")
-with c5: 
-    st.metric("GUARDIA D.", total_entrantes_gd, help="En instituto, no en escuadrón")
-with c6: 
-    st.metric("GUARDIA N.", total_entrantes_gn)
-with c7: 
-    st.metric("COMISIÓN", total_comision)
-with c8: 
-    st.metric("DISPONIBLES", presentes_en_escuadron - fuera_por_aula)
-st.markdown('</div>', unsafe_allow_html=True)
-
-st.divider()
-
-col_sync1, col_sync2 = st.columns(2)
-with col_sync1:
-    if st.button("🔄 Sincronizar Datos", key="sync_btn", use_container_width=True):
-        st.session_state.novedades_lista = obtener_novedades()
-        st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
-        st.success("✅ Datos sincronizados")
-        st.rerun()
-with col_sync2:
-    if st.button("🚨 RESETEAR ASISTENCIA DEL DÍA", key="reset_asistencia", use_container_width=True):
-        import sqlite3
-        conn = sqlite3.connect("parte_diario.db")
-        conn.execute(f"DELETE FROM asistencia_diaria WHERE fecha='{FECHA_STR}'")
-        conn.commit()
-        conn.close()
-        st.success("✅ Asistencia manual reiniciada.")
-        st.rerun()
 
 # ==============================================================================
 # 5. PESTAÑAS
