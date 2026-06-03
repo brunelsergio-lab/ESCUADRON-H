@@ -275,24 +275,7 @@ with col_sync2:
 
 st.divider()
 
-col_sync1, col_sync2 = st.columns(2)
-with col_sync1:
-    if st.button("🔄 Sincronizar Datos", key="sync_btn_unico_v2", use_container_width=True):
-        st.session_state.novedades_lista = obtener_novedades()
-        st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
-        st.session_state.estado_aulas = obtener_estado_aulas(FECHA_STR)
-        st.success("✅ Datos sincronizados correctamente")
-        st.rerun()
 
-with col_sync2:
-    if st.button("🚨 RESETEAR ASISTENCIA DEL DÍA", key="reset_asistencia_unico_v2", use_container_width=True):
-        import sqlite3
-        conn = sqlite3.connect("parte_diario.db")
-        conn.execute(f"DELETE FROM asistencia_diaria WHERE fecha='{FECHA_STR}'")
-        conn.commit()
-        conn.close()
-        st.success("✅ Asistencia manual reiniciada. Se recalculará en base a las novedades.")
-        st.rerun()
 # ==============================================================================
 # 4. INTERFAZ: BARRA SUPERIOR Y MÉTRICAS
 # ==============================================================================
