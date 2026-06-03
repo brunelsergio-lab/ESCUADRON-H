@@ -21,7 +21,7 @@ from db_manager import (
 
 st.set_page_config(
     page_title="Parte Diario - Escuadrón H",
-    page_icon="logo.png"
+    page_icon="logo.png",  # ← ACÁ ESTÁ LA COMA QUE FALTABA
     layout="wide",
     initial_sidebar_state="collapsed"
 )
