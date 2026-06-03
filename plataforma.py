@@ -808,14 +808,14 @@ with tab_res:
     st.divider()
     
     # =========================================================================
-    # GENERACIÓN DEL EXCEL (CON TODAS LAS VARIABLES DE ESTILO DEFINIDAS)
+    # GENERACIÓN DEL EXCEL (CÓDIGO LIMPIO Y SIN VARIABLES HUÉRFANAS)
     # =========================================================================
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "PARTE DIARIO"
     ws.views.sheetView[0].showGridLines = False
     
-    # 1. DEFINICIÓN DE ESTILOS (Para evitar NameError)
+    # 1. DEFINICIÓN DE ESTILOS
     font_titulo = Font(name="Calibri", size=14, bold=True)
     font_subtitulo = Font(name="Calibri", size=11, bold=True)
     font_header = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
@@ -912,7 +912,7 @@ with tab_res:
             ws.cell(row=row_idx, column=col_b).fill = fill_fila
         row_idx += 1
     
-    # 5. HORARIOS DE INGRESO
+    # 5. HORARIOS DE INGRESO (LÓGICA CORREGIDA Y SIN ERRORES)
     row_idx += 2
     ws.cell(row=row_idx, column=1, value="HORARIOS DE INGRESO - " + st.session_state.dia_actual.upper()).font = font_subtitulo
     row_idx += 1
@@ -929,21 +929,36 @@ with tab_res:
         
         grupos_ingreso[llave]["aulas"].append(aula)
         
+        # Contar presentes reales en esta aula para el reporte
         alumnos_aula = df[df['AULA'] == aula]
         for _, r in alumnos_aula.iterrows():
             orden_r = int(r['ORDEN_LIMP'])
-            # Contar solo si no está ausente y no es entrante de guardia diurna
-            if obtener_asistencia(FECHA_STR).get(orden_r) != "AUSENTE" and nov.get('estado') != 'ENTRANTE GUARDIA DIURNA':
-                 # Nota: la lógica de conteo de presentes por aula se simplifica aquí para el reporte
-                 pass # El conteo preciso ya está en las métricas principales
+            estado_manual = obtener_asistencia(FECHA_STR).get(orden_r)
+            
+            # Si está marcado manualmente como ausente o en instituto, no suma al escuadrón
+            if estado_manual in ["AUSENTE", "PRESENTE_INSTITUTO"]:
+                continue
+            
+            # Verificar novedad activa
+            es_ausente_por_nov = False
+            if orden_r in novedades_dict:
+                nov_act = novedades_dict[orden_r]
+                if es_novedad_activa(nov_act, st.session_state.fecha_reporte):
+                    if nov_act['estado'] in ['ART', 'DAF', 'LES', 'SSD', 'COMISIÓN', 'AUTORIZADO', 'ENTRANTE GUARDIA DIURNA', 'ENTRANTE GUARDIA NOCTURNA']:
+                        es_ausente_por_nov = True
+            
+            if not es_ausente_por_nov:
+                grupos_ingreso[llave]["presentes"] += 1
 
-    # Texto estático de horarios basado en la configuración del día
-    for aula in AULAS_UNICAS:
-        hor = st.session_state.horarios_hoy.get(aula, {"ent_m": "06:00", "tipo_ingreso": "Normal"})
-        texto = f"• Aula {aula}: Ingreso {hor['ent_m']} hs ({hor['tipo_ingreso']})."
-        ws.cell(row=row_idx, column=1, value=texto).font = font_observacion
-        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
-        row_idx += 1
+    # Escribir horarios en el Excel
+    grupos_ordenados = sorted(grupos_ingreso.items(), key=lambda x: x[0][0])
+    for (hora, tipo), datos in grupos_ordenados:
+        if datos["presentes"] > 0:
+            aulas_str = ", ".join(sorted(datos["aulas"]))
+            texto = f"• Ingreso {hora} hs ({tipo}): Aula(s) {aulas_str} — Ingresan {datos['presentes']} aspirante(s)."
+            ws.cell(row=row_idx, column=1, value=texto).font = font_observacion
+            ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+            row_idx += 1
     
     # 6. OBSERVACIONES GENERALES
     row_idx += 1
