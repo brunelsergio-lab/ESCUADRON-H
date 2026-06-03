@@ -26,18 +26,79 @@ st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout=
 # ==============================================================================
 st.markdown("""
 <style>
-    .sticky-bar { position: sticky !important; top: 0 !important; z-index: 999 !important; 
-                  background: #161B15 !important; padding: 10px 0 12px 0 !important; 
-                  border-bottom: 2px solid #C4A000 !important; margin-bottom: 15px !important; 
-                  box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important; }
-    .header-title { text-align: center !important; font-size: 1.15rem !important; font-weight: 900 !important; 
-                    color: #FFFFFF !important; letter-spacing: 2.5px !important; margin-bottom: 8px !important; 
-                    text-transform: uppercase !important; text-shadow: 1px 1px 3px #000000 !important; }
-    [data-testid="stMetricValue"] { font-size: 1.05rem !important; font-weight: 700 !important; color: #FFFFFF !important; }
+    /* --- ESTILOS GENERALES (ESCRITORIO Y MÓVIL) --- */
+    .sticky-bar { 
+        position: sticky !important; 
+        top: 0 !important; 
+        z-index: 999 !important; 
+        background: #161B15 !important; 
+        padding: 10px 5px 12px 5px !important; 
+        border-bottom: 2px solid #C4A000 !important; 
+        margin-bottom: 15px !important; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important; 
+    }
+    .header-title { 
+        text-align: center !important; 
+        font-size: 1.1rem !important; 
+        font-weight: 900 !important; 
+        color: #FFFFFF !important; 
+        letter-spacing: 1.5px !important; 
+        margin-bottom: 8px !important; 
+        text-transform: uppercase !important; 
+    }
+    
+    /* Hacer que los botones sean fáciles de tocar */
+    button[data-testid="stBaseButton-primary"], 
+    button[data-testid="stBaseButton-secondary"] {
+        min-height: 48px !important; /* Tamaño mínimo para dedos */
+        font-size: 16px !important;
+        border-radius: 6px !important;
+    }
+
+    /* --- ADAPTACIÓN ESPECÍFICA PARA CELULARES (Pantallas < 768px) --- */
+    @media (max-width: 768px) {
+        /* 1. Ajustar fuentes para que sean legibles */
+        body, p, div, span {
+            font-size: 16px !important;
+        }
+        
+        /* 2. Las métricas se organizarán en una grilla de 2x4 en lugar de 8 en línea */
+        div[data-testid="stMetric"] {
+            width: 48% !important; /* Ocupa la mitad de la pantalla */
+            min-width: 140px !important;
+            margin-bottom: 10px !important;
+            padding: 10px !important;
+            background-color: rgba(255,255,255,0.05) !important;
+            border-radius: 8px !important;
+        }
+        
+        /* Ajustar el texto dentro de las métricas */
+        div[data-testid="stMetric"] p {
+            font-size: 14px !important;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 1.2rem !important;
+        }
+
+        /* 3. Mejorar la tabla de novedades en móvil */
+        div[data-testid="stDataFrame"] {
+            font-size: 14px !important;
+        }
+        
+        /* 4. Reducir márgenes laterales para aprovechar la pantalla */
+        .main .block-container {
+            padding-left: 10px !important;
+            padding-right: 10px !important;
+            max-width: 100% !important;
+        }
+        
+        /* 5. Asegurar que los selectores y inputs ocupen todo el ancho */
+        input, select, div[data-testid="stSelectbox"] {
+            font-size: 16px !important; /* Evita que el iPhone haga zoom automático */
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
-
-st.markdown('<div class="header-box"></div>', unsafe_allow_html=True)
 
 # ==============================================================================
 # 1. CARGA DE DATOS
