@@ -676,16 +676,12 @@ with tab_nov:
             hide_index=True,
             column_config={
                 "N°": st.column_config.NumberColumn("N°", width="small"),
-                "Orden": st.column_config.NumberColumn("Orden", width="small"),
+                "Orden": st.column_config.NumberColumn("Ord", width="small"), # Acortamos el nombre para móvil
                 "Aula": st.column_config.TextColumn("Aula", width="small"),
-                "Grado": st.column_config.TextColumn("Grado", width="small"),
-                "Apellido y Nombre": st.column_config.TextColumn("Apellido y Nombre", width="medium"),
-                "DNI": st.column_config.TextColumn("DNI", width="small"),
-                "Novedad": st.column_config.TextColumn("Novedad", width="small"),
-                "Detalle": st.column_config.TextColumn("Detalle", width="medium"),
-                "Desde": st.column_config.TextColumn("Desde", width="small"),
-                "Hasta": st.column_config.TextColumn("Hasta", width="small"),
-                "Presentismo": st.column_config.TextColumn("Presentismo", width="small")
+                "Apellido y Nombre": st.column_config.TextColumn("Nombre", width="medium"), # Acortado
+                "Novedad": st.column_config.TextColumn("Nov", width="small"),
+                "Presentismo": st.column_config.TextColumn("Estado", width="small")
+                # ... el resto de las columnas pueden quedar como estaban
             }
         )
         
