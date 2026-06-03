@@ -19,7 +19,12 @@ from db_manager import (
     guardar_horarios_dia, obtener_horarios_dia, obtener_todos_horarios_dia
 )
 
-st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout="wide")
+st.set_page_config(
+    page_title="Parte Diario - Escuadrón H",
+    page_icon="logo.png"
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
 # ==============================================================================
 # 🎖️ ESTILOS E INTERFAZ INSTITUCIONAL
