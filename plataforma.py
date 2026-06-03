@@ -15,24 +15,29 @@ from db_manager import (
     obtener_almuerzo, agregar_almuerzo, quitar_almuerzo,
     obtener_horarios, guardar_horarios,
     obtener_asistencia, actualizar_asistencia,
-    obtener_todos_contactos, guardar_contacto
+    obtener_todos_contactos, guardar_contacto,
+    guardar_horarios_dia, obtener_horarios_dia, obtener_todos_horarios_dia
 )
 
 st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout="wide")
 
 # ==============================================================================
-# 🎖️ ESTILOS E INTERFAZ INSTITUTIONAL
+# 🎖️ ESTILOS E INTERFAZ INSTITUCIONAL
 # ==============================================================================
 st.markdown("""
 <style>
-/* Estilos generales */
+    .sticky-bar { position: sticky !important; top: 0 !important; z-index: 999 !important; 
+                  background: #161B15 !important; padding: 10px 0 12px 0 !important; 
+                  border-bottom: 2px solid #C4A000 !important; margin-bottom: 15px !important; 
+                  box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important; }
+    .header-title { text-align: center !important; font-size: 1.15rem !important; font-weight: 900 !important; 
+                    color: #FFFFFF !important; letter-spacing: 2.5px !important; margin-bottom: 8px !important; 
+                    text-transform: uppercase !important; text-shadow: 1px 1px 3px #000000 !important; }
+    [data-testid="stMetricValue"] { font-size: 1.05rem !important; font-weight: 700 !important; color: #FFFFFF !important; }
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("""
-<div class="header-box">
-</div>
-""", unsafe_allow_html=True)
+st.markdown('<div class="header-box"></div>', unsafe_allow_html=True)
 
 # ==============================================================================
 # 1. CARGA DE DATOS
@@ -59,7 +64,6 @@ def cargar_personal():
         st.error(f"Error al cargar datos: {e}")
         return pd.DataFrame()
 
-# Inicializar base de datos
 if 'db_iniciada' not in st.session_state:
     init_db()
     st.session_state.db_iniciada = True
@@ -71,26 +75,13 @@ if df.empty:
 TOTAL_ESCUADRON = 139
 AULAS_UNICAS = sorted(df['AULA'].unique())
 
-# Fecha del reporte
 if 'fecha_reporte' not in st.session_state:
     st.session_state.fecha_reporte = datetime.now().date()
 FECHA_STR = st.session_state.fecha_reporte.isoformat()
 
-# --- COPIÁ Y PEGÁ ESTO ACÁ ---
-if "config_aulas" not in st.session_state:
-    st.session_state.config_aulas = {
-        "18TM": {"horario": "0600 a 0620 hs", "tipo_ingreso": "Normal"},
-        "24TM": {"horario": "0600 a 0620 hs", "tipo_ingreso": "Normal"},
-        "23TT": {"horario": "0600 a 0620 hs", "tipo_ingreso": "Normal"},
-        "23TM": {"horario": "0810 hs", "tipo_ingreso": "Diferencial"},
-        "26TM": {"horario": "0900 a 0915 hs", "tipo_ingreso": "Diferencial"},
-        "28TM": {"horario": "0810 hs", "tipo_ingreso": "Diferencial"},
-        "7TT": {"horario": "Normal", "tipo_ingreso": "Normal"},
-        "8TM": {"horario": "Normal", "tipo_ingreso": "Normal"}
-    }
-# -----------------------------
-
-# Novedades y configuraciones
+# ==============================================================================
+# 2. INICIALIZACIÓN DE ESTADO
+# ==============================================================================
 if 'novedades_lista' not in st.session_state:
     st.session_state.novedades_lista = obtener_novedades()
 if 'estado_aulas' not in st.session_state:
@@ -110,42 +101,58 @@ if 'estado_aulas' not in st.session_state:
 if 'lista_almuerzo' not in st.session_state:
     st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
 
-if 'horarios_config' not in st.session_state:
-    db_hor = obtener_horarios()
-    st.session_state.horarios_config = {}
-    for aula in AULAS_UNICAS:
-        st.session_state.horarios_config[aula] = db_hor.get(aula, {
-            "ent_m": "06:00", "sal_m": "12:00", "ent_t": "13:00", "sal_t": "19:00"
-        })
-
-if 'estado_asistencia' not in st.session_state:
-    st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
-
 if 'editando_idx' not in st.session_state:
     st.session_state.editando_idx = None
-
 if 'sel_nov' not in st.session_state:
     st.session_state.sel_nov = None
 
 # ==============================================================================
-# 3. CÁLCULO DE MÉTRICAS EN TIEMPO REAL
+# 3. CÁLCULO DE MÉTRICAS - LÓGICA MAESTRA
 # ==============================================================================
 st.session_state.novedades_lista = obtener_novedades()
 st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
 
-if not st.session_state.estado_asistencia:
-    st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
-else:
-    db_asistencia = obtener_asistencia(FECHA_STR)
-    for orden, estado in db_asistencia.items():
-        if orden not in st.session_state.estado_asistencia:
-            st.session_state.estado_asistencia[orden] = estado
+DIAS_SEMANA_ES = ["lunes", "martes", "miercoles", "jueves", "viernes"]
+dia_actual_idx = st.session_state.fecha_reporte.weekday()
+dia_actual = DIAS_SEMANA_ES[dia_actual_idx] if dia_actual_idx < 5 else "lunes"
 
-ausentes_fijos = {n['orden'] for n in st.session_state.novedades_lista if n['estado'] in ['ART', 'DAF', 'LES']}
-ausentes_manuales = {orden for orden, estado in st.session_state.estado_asistencia.items() if estado == "AUSENTE"}
-presentes_manuales = {orden for orden, estado in st.session_state.estado_asistencia.items() if estado == "PRESENTE"}
+horarios_hoy = obtener_todos_horarios_dia(dia_actual)
+asistencia_manual = obtener_asistencia(FECHA_STR)
 
-total_ausentes = (ausentes_fijos | ausentes_manuales) - presentes_manuales
+# Clasificación de novedades
+entrantes_guardia_diurna = set()
+entrantes_guardia_nocturna = set()
+ausentes_con_novedad = set()
+comision_autorizados = set()
+
+ESTADOS_AUSENCIA = ['ART', 'DAF', 'LES', 'SSD']
+ESTADOS_FUERA = ['COMISIÓN', 'AUTORIZADO']
+
+for nov in st.session_state.novedades_lista:
+    orden = int(nov['orden'])
+    estado = nov['estado']
+    if estado == 'ENTRANTE GUARDIA DIURNA':
+        entrantes_guardia_diurna.add(orden)
+    elif estado == 'ENTRANTE GUARDIA NOCTURNA':
+        entrantes_guardia_nocturna.add(orden)
+    elif estado in ESTADOS_AUSENCIA:
+        ausentes_con_novedad.add(orden)
+    elif estado in ESTADOS_FUERA:
+        comision_autorizados.add(orden)
+
+# Cálculos finales
+total_ausentes_manuales = {o for o, e in asistencia_manual.items() if e == "AUSENTE"}
+presentes_forzados = {o for o, e in asistencia_manual.items() if e == "PRESENTE"}
+
+# Ausentes totales = (novedad + manual) - forzados a presente
+total_ausentes = (ausentes_con_novedad | total_ausentes_manuales) - presentes_forzados
+
+total_entrantes_gd = len(entrantes_guardia_diurna - presentes_forzados)
+total_entrantes_gn = len(entrantes_guardia_nocturna - presentes_forzados)
+total_comision = len(comision_autorizados - presentes_forzados)
+
+presentes_en_instituto = TOTAL_ESCUADRON - len(total_ausentes)
+presentes_en_escuadron = presentes_en_instituto - total_entrantes_gd
 
 en_instituto = 0
 fuera_por_aula = 0
@@ -153,65 +160,47 @@ for _, row in df.iterrows():
     orden = row['ORDEN_LIMP']
     aula = row['AULA']
     if orden in total_ausentes: continue
+    if orden in entrantes_guardia_diurna: continue
     if st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO') == 'EN INSTITUTO':
         en_instituto += 1
     else:
         fuera_por_aula += 1
 
-disponibles = TOTAL_ESCUADRON - len(total_ausentes)
 total_fuera = fuera_por_aula + len(total_ausentes)
 
-ubicacion_dist = {"EN AULA": [], "URF": [], "EDUCACIÓN FÍSICA": [], "EN INSTITUTO": []}
-for aula in AULAS_UNICAS:
-    cfg = st.session_state.estado_aulas[aula]
-    if cfg['estado_m'] == 'EN INSTITUTO':
-        ubic = cfg.get('ubicacion_m', 'EN AULA')
-        if ubic in ubicacion_dist:
-            ubicacion_dist[ubic].append(len(df[df['AULA'] == aula]))
+# Guardar en session state
+st.session_state.dia_actual = dia_actual
+st.session_state.horarios_hoy = horarios_hoy
+st.session_state.total_ausentes = total_ausentes
+st.session_state.presentes_en_escuadron = presentes_en_escuadron
+st.session_state.presentes_en_instituto = presentes_en_instituto
+st.session_state.total_entrantes_gd = total_entrantes_gd
+st.session_state.total_entrantes_gn = total_entrantes_gn
+st.session_state.total_comision = total_comision
 
-st.markdown("""
-<style>
-    .sticky-bar { position: sticky !important; top: 0 !important; z-index: 999 !important; 
-                  background: #161B15 !important; padding: 10px 0 12px 0 !important; 
-                  border-bottom: 2px solid #C4A000 !important; margin-bottom: 15px !important; 
-                  box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important; }
-    .header-title { text-align: center !important; font-size: 1.15rem !important; font-weight: 900 !important; 
-                    color: #FFFFFF !important; letter-spacing: 2.5px !important; margin-bottom: 8px !important; 
-                    text-transform: uppercase !important; text-shadow: 1px 1px 3px #000000 !important; }
-    [data-testid="stMetricValue"] { font-size: 1.05rem !important; font-weight: 700 !important; color: #FFFFFF !important; }
-</style>
-""", unsafe_allow_html=True)
-
+# ==============================================================================
+# 4. INTERFAZ: BARRA SUPERIOR Y MÉTRICAS
+# ==============================================================================
 st.markdown('<div class="sticky-bar">', unsafe_allow_html=True)
 st.markdown('<div class="header-title">ESCUADRÓN H "CABO MARCELO GODOY"</div>', unsafe_allow_html=True)
 
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
 with c1: st.metric("TOTAL", TOTAL_ESCUADRON)
-with c2: st.metric("DISP.", disponibles, delta=f"-{len(total_ausentes)}" if total_ausentes else None)
-with c3: st.metric("EN INST.", en_instituto)
-with c4: st.metric("FUERA", total_fuera, delta_color="inverse" if total_fuera > 0 else "normal")
-with c5: 
-    v = sum(ubicacion_dist['EN AULA'])
-    st.metric("AULA", v, f"{len(ubicacion_dist['EN AULA'])} a." if v>0 else None)
-with c6: 
-    v = sum(ubicacion_dist['URF'])
-    st.metric("URF", v, f"{len(ubicacion_dist['URF'])} a." if v>0 else None)
-with c7: 
-    v = sum(ubicacion_dist['EDUCACIÓN FÍSICA'])
-    st.metric("ED.FÍS", v, f"{len(ubicacion_dist['EDUCACIÓN FÍSICA'])} a." if v>0 else None)
-with c8: 
-    v = sum(ubicacion_dist['EN INSTITUTO'])
-    st.metric("ACTIV.", v, f"{len(ubicacion_dist['EN INSTITUTO'])} a." if v>0 else None)
+with c2: st.metric("EN INSTITUTO", presentes_en_instituto, delta=f"-{len(total_ausentes)} aus." if total_ausentes else None)
+with c3: st.metric("EN ESCUADRÓN", presentes_en_escuadron, help="Presentes en instituto menos entrantes guardia diurna")
+with c4: st.metric("AUSENTES", len(total_ausentes), delta_color="inverse" if total_ausentes else "normal")
+with c5: st.metric("GUARDIA D.", total_entrantes_gd, help="En instituto, no en escuadrón")
+with c6: st.metric("GUARDIA N.", total_entrantes_gn)
+with c7: st.metric("COMISIÓN", total_comision)
+with c8: st.metric("DISPONIBLES", presentes_en_escuadron - fuera_por_aula)
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
 
-# Botones de Control Sincro
 col_sync1, col_sync2 = st.columns(2)
 with col_sync1:
     if st.button("🔄 Sincronizar Datos", key="sync_btn", use_container_width=True):
         st.session_state.novedades_lista = obtener_novedades()
-        st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
         st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
         st.success("✅ Datos sincronizados")
         st.rerun()
@@ -222,12 +211,11 @@ with col_sync2:
         conn.execute(f"DELETE FROM asistencia_diaria WHERE fecha='{FECHA_STR}'")
         conn.commit()
         conn.close()
-        st.session_state.estado_asistencia = {}
-        st.success("✅ Asistencia reiniciada.")
+        st.success("✅ Asistencia manual reiniciada.")
         st.rerun()
 
 # ==============================================================================
-# 4. ESTRUCTURA DE PESTAÑAS (AL RAS DEL MARGEN)
+# 5. PESTAÑAS
 # ==============================================================================
 tab_config, tab_nov, tab_seg, tab_alm, tab_plan, tab_res = st.tabs([
     "⚙️ Configuración", "📝 Novedades", "🔍 Seguimiento", "🍴 Almuerzo", "📞 Plan de Llamada", "📊 Resumen"
@@ -235,22 +223,46 @@ tab_config, tab_nov, tab_seg, tab_alm, tab_plan, tab_res = st.tabs([
 
 # --- TAB: CONFIGURACIÓN ---
 with tab_config:
-    st.subheader("Configuración del Día y Horarios")
-    st.session_state.fecha_reporte = st.date_input("Fecha del Reporte", st.session_state.fecha_reporte)
-    st.divider()
-    for aula in AULAS_UNICAS:
-        cfg = st.session_state.horarios_config[aula]
-        with st.expander(f"**{aula}**", expanded=False):
-            c1, c2, c3, c4 = st.columns(4)
-            cfg['ent_m'] = c1.text_input("Entrada Mañana", cfg['ent_m'], key=f"em_{aula}")
-            cfg['sal_m'] = c2.text_input("Salida Mañana", cfg['sal_m'], key=f"sm_{aula}")
-            cfg['ent_t'] = c3.text_input("Entrada Tarde", cfg['ent_t'], key=f"et_{aula}")
-            cfg['sal_t'] = c4.text_input("Salida Tarde", cfg['sal_t'], key=f"st_{aula}")
+    st.subheader("⚙️ Configuración de Horarios Semanales")
+    st.session_state.fecha_reporte = st.date_input("📅 Fecha del Reporte", st.session_state.fecha_reporte)
     
-    if st.button("💾 Guardar configuración de horarios", type="primary"):
+    dias_semana_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+    dias_semana_db = ["lunes", "martes", "miercoles", "jueves", "viernes"]
+    dia_idx = st.session_state.fecha_reporte.weekday()
+    
+    if dia_idx < 5:
+        st.info(f"📌 Día activo: **{dias_semana_es[dia_idx]}**. Los horarios de este día se usarán en el parte.")
+    else:
+        st.warning("⚠️ Fin de semana detectado. Se tomará Lunes como referencia.")
+        dia_idx = 0
+    
+    st.divider()
+    
+    if 'horarios_semanales' not in st.session_state:
+        st.session_state.horarios_semanales = {}
         for aula in AULAS_UNICAS:
-            guardar_horarios(aula, st.session_state.horarios_config[aula])
-        st.success("✅ Horarios guardados")
+            st.session_state.horarios_semanales[aula] = {}
+            for d_db in dias_semana_db:
+                st.session_state.horarios_semanales[aula][d_db] = obtener_horarios_dia(aula, d_db)
+    
+    for aula in AULAS_UNICAS:
+        with st.expander(f"**🏫 Aula {aula}**", expanded=False):
+            tab_dias = st.tabs(dias_semana_es)
+            for i, (d_es, d_db) in enumerate(zip(dias_semana_es, dias_semana_db)):
+                with tab_dias[i]:
+                    cfg = st.session_state.horarios_semanales[aula][d_db]
+                    c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 2, 3])
+                    cfg['ent_m'] = c1.text_input("Entrada M.", cfg['ent_m'], key=f"em_{aula}_{d_db}")
+                    cfg['sal_m'] = c2.text_input("Salida M.", cfg['sal_m'], key=f"sm_{aula}_{d_db}")
+                    cfg['ent_t'] = c3.text_input("Entrada T.", cfg['ent_t'], key=f"et_{aula}_{d_db}")
+                    cfg['sal_t'] = c4.text_input("Salida T.", cfg['sal_t'], key=f"st_{aula}_{d_db}")
+                    cfg['tipo_ingreso'] = c5.selectbox("Tipo Ingreso", ["Normal", "Diferencial"], index=0 if cfg.get('tipo_ingreso', 'Normal') == 'Normal' else 1, key=f"ti_{aula}_{d_db}")
+    
+    if st.button("💾 Guardar Horarios de Toda la Semana", type="primary"):
+        for aula in AULAS_UNICAS:
+            for d_db in dias_semana_db:
+                guardar_horarios_dia(aula, d_db, st.session_state.horarios_semanales[aula][d_db])
+        st.success("✅ Horarios semanales guardados correctamente")
         st.rerun()
 
 # --- TAB: NOVEDADES ---
@@ -263,29 +275,27 @@ with tab_nov:
         st.rerun()
 
     st.subheader("✏️ Editando Novedad" if es_edicion else "➕ Registrar Novedad")
+    st.info("⚠️ Lo que marques acá será la REFERENCIA para todos los cálculos del parte (métricas, seguimiento y excel).")
+    
     data = None
     if es_edicion:
         nov = st.session_state.novedades_lista[edit_idx]
         st.info(f"Editando a: **{nov['nombre']}**")
         data = nov
-        orden = int(data["orden"]) # Forzamos entero para el presentismo
+        orden = int(data["orden"])
         nombre_asp = data["nombre"]
-        estado_act = st.session_state.estado_asistencia.get(orden, "PRESENTE")
+        estado_act = asistencia_manual.get(orden, "PRESENTE")
 
         col_btn_p, col_btn_a = st.columns(2)
         with col_btn_p:
             if st.button("✅ MARCAR PRESENTE", type="primary", use_container_width=True, key="btn_pres_edit"):
-                # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin borrar la novedad
                 actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                st.session_state.estado_asistencia[orden] = "PRESENTE"
-                st.success(f"{nombre_asp} marcado como PRESENTE en el Parte Diario")
+                st.success(f"{nombre_asp} marcado como PRESENTE")
                 st.rerun()
         with col_btn_a:
             if st.button("❌ MARCAR AUSENTE", type="secondary", use_container_width=True, key="btn_aus_edit"):
-                # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin borrar la novedad
                 actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                st.session_state.estado_asistencia[orden] = "AUSENTE"
-                st.error(f"{nombre_asp} marcado como AUSENTE en el Parte Diario")
+                st.error(f"{nombre_asp} marcado como AUSENTE")
                 st.rerun()
     else:
         search = st.text_input("🔍 Buscar aspirante:", placeholder="Nombre, DNI o CE", key="search_nov")
@@ -303,23 +313,18 @@ with tab_nov:
 
         if st.session_state.sel_nov:
             data = st.session_state.sel_nov
-            orden = int(data["ORDEN_LIMP"]) # Forzamos entero para el presentismo
+            orden = int(data["ORDEN_LIMP"])
             nombre_asp = data.get('NOMBRE_COMPLETO', data.get('nombre', 'Aspirante'))
-            estado_act = st.session_state.estado_asistencia.get(orden, "PRESENTE")
 
             col_btn_p, col_btn_a, col_btn_c = st.columns([2, 2, 1])
             with col_btn_p:
                 if st.button("✅ PRESENTE", type="primary", use_container_width=True, key="btn_pres_reg"):
-                    # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin tocar la base de novedades
                     actualizar_asistencia(FECHA_STR, orden, "PRESENTE")
-                    st.session_state.estado_asistencia[orden] = "PRESENTE"
                     st.success(f"{nombre_asp} marcado como PRESENTE")
                     st.rerun()
             with col_btn_a:
                 if st.button("❌ AUSENTE", type="secondary", use_container_width=True, key="btn_aus_reg"):
-                    # SOLUCIÓN: Guarda el presentismo de forma independiente como ENTERO sin tocar la base de novedades
                     actualizar_asistencia(FECHA_STR, orden, "AUSENTE")
-                    st.session_state.estado_asistencia[orden] = "AUSENTE"
                     st.error(f"{nombre_asp} marcado como AUSENTE")
                     st.rerun()
             with col_btn_c:
@@ -360,6 +365,8 @@ with tab_nov:
                         "dni": data["DNI"], "ce": data["CE"], "aula": data["AULA"], "estado": est,
                         "detalle": det.upper(), "fecha_ini": fi, "fecha_fin": ff
                     })
+                    # Al grabar novedad, marcar automáticamente como ausente en asistencia manual
+                    actualizar_asistencia(FECHA_STR, int(data["ORDEN_LIMP"]), "AUSENTE")
                     st.session_state.novedades_lista = obtener_novedades()
                     st.session_state.sel_nov = None
                     st.rerun()
@@ -375,11 +382,8 @@ with tab_nov:
             col_datos, col_edit, col_borrar = st.columns([6, 1, 1])
             with col_datos:
                 est_limpio = str(nov['estado']).replace("<span>", "").replace("</span>", "")
-                
-                # Buscamos el estado de presentismo real para mostrarlo al lado del nombre
-                asis_actual = st.session_state.estado_asistencia.get(int(nov['orden']), "AUSENTE")
+                asis_actual = asistencia_manual.get(int(nov['orden']), "AUSENTE")
                 color_asis = "🟢 PRESENTE" if asis_actual == "PRESENTE" else "🔴 AUSENTE"
-                
                 st.markdown(f"**{nov['nombre']}** | **[{est_limpio}]** | {color_asis} | Aula: {nov['aula']}")
                 st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {nov['detalle']} (DNI: {nov['dni']})")
             with col_edit:
@@ -388,10 +392,10 @@ with tab_nov:
                     st.rerun()
             with col_borrar:
                 if st.button("🗑️", key=f"del_{idx}"):
-                    # Aquí el usuario SÍ quiere borrar explícitamente la novedad con el tacho de basura
                     eliminar_novedad(nov['id'])
                     st.session_state.novedades_lista = obtener_novedades()
                     st.rerun()
+
 # --- TAB: SEGUIMIENTO ---
 with tab_seg:
     st.subheader("Control de Ingreso/Egreso - Seguimiento Diario")
@@ -406,7 +410,7 @@ with tab_seg:
         
         alumnos = df[df['AULA'] == aula]
         total = len(alumnos)
-        ausentes = sum(1 for n in st.session_state.novedades_lista if n['aula'] == aula and n['estado'] in ['ART', 'DAF', 'LES'])
+        ausentes = sum(1 for n in st.session_state.novedades_lista if n['aula'] == aula and n['estado'] in ['ART', 'DAF', 'LES', 'SSD'])
         
         c1, c2, c3, c4 = st.columns([2, 2, 4, 1])
         with c1:
@@ -471,7 +475,6 @@ with tab_alm:
                     quitar_almuerzo(FECHA_STR, row['ORDEN_LIMP'])
                     st.rerun()
         
-        # 📥 SECCIÓN EXCEL RACIONAMIENTO (Fijo adentro de Almuerzo)
         st.divider()
         wb_rac = openpyxl.Workbook()
         ws_rac = wb_rac.active
@@ -517,300 +520,175 @@ with tab_alm:
 # --- TAB: PLAN DE LLAMADA ---
 with tab_plan:
     st.subheader("Plan de Llamada Interno de la Subunidad")
-    st.info("Directorio de contactos de emergencia de la Guardia.")
+    st.info("Directorio de contactos de emergencia de la Guardia. (Funcionalidad a desarrollar)")
 
-# --- TAB: RESUMEN (PROCESAMIENTO, CÁLCULO DE AULAS Y UN SOLO BOTÓN) ---
+# --- TAB: RESUMEN Y EXCEL ---
 with tab_res:
-    st.subheader("📊 Reporte General y Control de Ingresos")
-
-    # 1. PROCESAMIENTO GENERAL DE ASISTENCIA Y CONFIGURACIÓN VIVA DE AULAS
-    totales_aulas = {}
-    novedades_dict = {int(n["orden"]): n for n in st.session_state.novedades_lista}
-
-    # Cargamos dinámicamente los horarios modificados por el usuario desde la pestaña de configuración
-    for aula_id, conf in st.session_state.config_aulas.items():
-        totales_aulas[aula_id] = {
-            "total": 0,
-            "presentes": 0,
-            "ausentes": 0,
-            "horario": conf.get("horario", "0600 a 0620 hs"),
-            "tipo_ingreso": conf.get("tipo_ingreso", "Normal")
-        }
-
-    # Procesamos el universo total de aspirantes cruzando el presentismo vivo
-    for _, row in df.iterrows():
-        ord_val = int(row["ORDEN_LIMP"])
-        aula_val = str(row["AULA"]).strip().upper()
-        
-        if aula_val in totales_aulas:
-            totales_aulas[aula_val]["total"] += 1
-            estado_asis = st.session_state.estado_asistencia.get(ord_val, "PRESENTE")
-            
-            if estado_asis == "PRESENTE":
-                totales_aulas[aula_val]["presentes"] += 1
-            else:
-                totales_aulas[aula_val]["ausentes"] += 1
-
-    # 2. AGRUPACIÓN VIVA DE INGRESOS DIFERENCIALES CON CONTEO DE PRESENTES
-    grupos_horarios = {}
-    for aula_id, datos in totales_aulas.items():
-        if datos["presentes"] > 0:  # Registramos el horario dinámico real si hay personal presente
-            llave_horario = datos["horario"]
-            if llave_horario not in grupos_horarios:
-                grupos_horarios[llave_horario] = {"aulas": [], "personal_count": 0}
-            if aula_id not in grupos_horarios[llave_horario]["aulas"]:
-                grupos_horarios[llave_horario]["aulas"].append(aula_id)
-            grupos_horarios[llave_horario]["personal_count"] += datos["presentes"]
-
-    # Vista previa en pantalla de las estadísticas de aulas
-    st.markdown("### Resumen de Efectivos por Aula")
-    df_previo = pd.DataFrame.from_dict(totales_aulas, orient='index').reset_index().rename(columns={'index': 'Aula'})
-    st.dataframe(df_previo, use_container_width=True)
-
-    # 3. ARMADO DEL EXCEL ÚNICO AL PRESIONAR EL BOTÓN
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from io import BytesIO
-
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "PARTE"
-    ws.views.sheetView[0].showGridLines = True
-
-    # Estructura del Título del Reporte Único
-    ws.merge_cells("A1:K1")
-    ws["A1"] = f"PARTE DIARIO DEL ESCUADRÓN H - {FECHA_STR}"
-    ws["A1"].font = Font(name="Calibri", size=14, bold=True)
-    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 30
-
-    # Cuadro Estadístico de Fuerza Principal
-    headers_fuerza = ["TOTAL", "PRESENTES", "AUSENTES", "NOVEDADES"]
-    for col_idx, text in enumerate(headers_fuerza, start=2):
-        cell = ws.cell(row=3, column=col_idx, value=text)
-        cell.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="1E4620", end_color="1E4620", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-
-    total_general = sum(d["total"] for d in totales_aulas.values())
-    total_presentes = sum(d["presentes"] for d in totales_aulas.values())
-    total_ausentes = sum(d["ausentes"] for d in totales_aulas.values())
-    total_novedades = len(st.session_state.novedades_lista)
-
-    valores_fuerza = [total_general, total_presentes, total_ausentes, total_novedades]
-    for col_idx, val in enumerate(valores_fuerza, start=2):
-        cell = ws.cell(row=4, column=col_idx, value=val)
-        cell.font = Font(name="Calibri", size=11, bold=True)
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[3].height = 18
-    ws.row_dimensions[4].height = 20
-
-    # Encabezados de Columnas de la Planilla Única
-    headers_tabla = ["ORDEN", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "PRESENTE / AUSENTE", "DESDE", "HASTA", "AULA"]
-    for col_idx, text in enumerate(headers_tabla, start=1):
-        cell = ws.cell(row=8, column=col_idx, value=text)
-        cell.font = Font(name="Calibri", size=9, bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="1E4620", end_color="1E4620", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[8].height = 22
-
-    linea_actual = 9
-    border_fino = Border(
-        left=Side(style='thin', color='DDDDDD'), right=Side(style='thin', color='DDDDDD'),
-        top=Side(style='thin', color='DDDDDD'), bottom=Side(style='thin', color='DDDDDD')
-    )
-
-    # Volcado completo e independiente de las filas de los aspirantes
-    for _, row in df.iterrows():
-        ord_int = int(row["ORDEN_LIMP"])
-        asis_real = st.session_state.estado_asistencia.get(ord_int, "PRESENTE")
-        nov_viva = novedades_dict.get(ord_int, None)
-        
-        nov_texto = nov_viva["estado"].replace("<span>", "").replace("</span>", "") if nov_viva else ""
-        desde_texto = nov_viva["fecha_ini"] if nov_viva else ""
-        hasta_texto = nov_viva["fecha_fin"] if nov_viva else ""
-
-        ws.cell(row=linea_actual, column=1, value=ord_int).alignment = Alignment(horizontal="center")
-        ws.cell(row=linea_actual, column=2, value=row["GRADO"]).alignment = Alignment(horizontal="center")
-        ws.cell(row=linea_actual, column=3, value=row["NOMBRE_COMPLETO"]).alignment = Alignment(horizontal="left")
-        ws.cell(row=linea_actual, column=4, value=int(row["DNI"])).alignment = Alignment(horizontal="center")
-        ws.cell(row=linea_actual, column=5, value=row["CE"]).alignment = Alignment(horizontal="center")
-        ws.cell(row=linea_actual, column=6, value=nov_texto).alignment = Alignment(horizontal="center")
-        
-        # Estado de asistencia guardado de forma independiente por el usuario
-        cell_asis = ws.cell(row=linea_actual, column=7, value=asis_real)
-        cell_asis.alignment = Alignment(horizontal="center")
-        if asis_real == "AUSENTE":
-            cell_asis.fill = PatternFill(start_color="FDE8E8", end_color="FDE8E8", fill_type="solid")
-            cell_asis.font = Font(name="Calibri", color="9B1C1C", bold=True)
-        else:
-            cell_asis.fill = PatternFill(start_color="E1F5FE", end_color="E1F5FE", fill_type="solid")
-            cell_asis.font = Font(name="Calibri", color="0288D1")
-
-        ws.cell(row=linea_actual, column=8, value=desde_texto).alignment = Alignment(horizontal="center")
-        ws.cell(row=linea_actual, column=9, value=hasta_texto).alignment = Alignment(horizontal="center")
-        ws.cell(row=linea_actual, column=10, value=row["AULA"]).alignment = Alignment(horizontal="center")
-
-        for c in range(1, 11):
-            ws.cell(row=linea_actual, column=c).border = border_fino
-            if c != 7:
-                ws.cell(row=linea_actual, column=c).font = Font(name="Calibri", size=10)
-        
-        ws.row_dimensions[linea_actual].height = 19
-        linea_actual += 1
-
-    # 4. OBSERVACIONES GENERALES E INGRESOS DIFERENCIALES VIVOS ACTUALIZADOS
-    linea_actual += 2
-    obs_label = ws.cell(row=linea_actual, column=1, value="OBSERVACIONES GENERALES E INGRESOS")
-    obs_label.font = Font(name="Calibri", size=11, bold=True)
-    linea_actual += 1
-
-    # Escribe los horarios reales e indica cuántos alumnos presentes ingresan en cada bloque horario
-    for horario, datos in grupos_horarios.items():
-        aulas_str = ", ".join(sorted(datos["aulas"]))
-        count_pers = datos["personal_count"]
-        
-        texto_ingreso = f"• Ingreso horario diferencial {horario}: Aulas {aulas_str} (Total: {count_pers} Aspirantes Presentes)."
-        
-        cell_ingreso = ws.cell(row=linea_actual, column=1, value=texto_ingreso)
-        cell_ingreso.font = Font(name="Calibri", size=10, italic=True)
-        ws.merge_cells(start_row=linea_actual, start_column=1, end_row=linea_actual, end_column=10)
-        linea_actual += 1
-
-    # Ajuste automático del ancho de celdas
-    for col in ws.columns:
-        max_len = 0
-        col_letter = openpyxl.utils.get_column_letter(col[0].column)
-        for cell in col:
-            if cell.row > 1 and cell.value:
-                max_len = max(max_len, len(str(cell.value)))
-        ws.column_dimensions[col_letter].width = max(max_len + 3, 11)
-    ws.column_dimensions["C"].width = 32
-
-    # 5. UN SOLO BOTÓN DE DESCARGA FINAL
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-
-    st.markdown("---")
-    st.download_button(
-        label="📥 Descargar Parte Diario Completo (Excel Único)",
-        data=output,
-        file_name=f"PARTE_DIARIO_ESCUADRÓN_H_{FECHA_STR}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        use_container_width=True
-    )
-    # ==============================================================================
-    # 5. GENERACIÓN PROFESIONAL EXCEL MILITAR DEL PARTE DIARIO (AL RAS DEL MARGEN)
-    # ==============================================================================
+    st.subheader("📊 Reporte General del Parte Diario")
+    
+    col_a, col_b, col_c, col_d, col_e = st.columns(5)
+    with col_a: st.metric("TOTAL", TOTAL_ESCUADRON)
+    with col_b: st.metric("EN INSTITUTO", st.session_state.presentes_en_instituto)
+    with col_c: st.metric("EN ESCUADRÓN", st.session_state.presentes_en_escuadron)
+    with col_d: st.metric("AUSENTES", len(st.session_state.total_ausentes))
+    with col_e: st.metric("GUARDIA D.", st.session_state.total_entrantes_gd)
+    
     st.divider()
     
-    total_efectivos = len(df)
-    total_novedades = len(st.session_state.novedades_lista)
-    presentes = total_efectivos - total_novedades
-
-    # Creamos el libro oficial
-    buffer_general = io.BytesIO()
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "PARTE"
-    ws.views.sheetView[0].showGridLines = True
-
-    # Estilos Gendarmería
+    ws.title = "PARTE DIARIO"
+    ws.views.sheetView[0].showGridLines = False
+    
     font_titulo = Font(name="Calibri", size=14, bold=True)
-    font_subseccion = Font(name="Calibri", size=11, bold=True)
+    font_subtitulo = Font(name="Calibri", size=11, bold=True)
     font_header = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
     font_datos = Font(name="Calibri", size=10)
-    fill_verde_gendarme = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
-    thin_border = Border(left=Side(style='thin', color='BFBFBF'), right=Side(style='thin', color='BFBFBF'),
-                         top=Side(style='thin', color='BFBFBF'), bottom=Side(style='thin', color='BFBFBF'))
-
-    # Encabezado Cuadro Fuerza
+    font_observacion = Font(name="Calibri", size=10, italic=True)
+    fill_verde = PatternFill(start_color="1E4620", end_color="1E4620", fill_type="solid")
+    fill_rojo_claro = PatternFill(start_color="FDE8E8", end_color="FDE8E8", fill_type="solid")
+    fill_azul_claro = PatternFill(start_color="E1F5FE", end_color="E1F5FE", fill_type="solid")
+    thin_border = Border(left=Side(style='thin', color='BFBFBF'), right=Side(style='thin', color='BFBFBF'), top=Side(style='thin', color='BFBFBF'), bottom=Side(style='thin', color='BFBFBF'))
+    
     ws.merge_cells('A1:J1')
-    ws['A1'] = f"PARTE DIARIO DEL ESCUADRÓN H - {datetime.now().strftime('%d%b%y').upper()}"
+    ws['A1'] = f"PARTE DIARIO DEL ESCUADRÓN H - {st.session_state.fecha_reporte.strftime('%d%b%y').upper()}"
     ws['A1'].font = font_titulo
     ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
-
-    ws['B3'] = "TOTAL"
-    ws['C3'] = "PRESENTES"
-    ws['D3'] = "AUSENTES"
-    ws['E3'] = "NOVEDADES"
-    for col in ['B3', 'C3', 'D3', 'E3']:
+    ws.row_dimensions[1].height = 30
+    
+    ws['A2'] = f"Día: {st.session_state.dia_actual.capitalize()}"
+    ws['A2'].font = Font(name="Calibri", size=10, italic=True)
+    
+    ws['B4'] = "TOTAL"
+    ws['C4'] = "EN INSTITUTO"
+    ws['D4'] = "EN ESCUADRÓN"
+    ws['E4'] = "AUSENTES"
+    ws['F4'] = "GUARDIA D."
+    ws['G4'] = "GUARDIA N."
+    ws['H4'] = "COMISIÓN"
+    
+    for col in ['B4', 'C4', 'D4', 'E4', 'F4', 'G4', 'H4']:
         ws[col].font = font_header
-        ws[col].fill = fill_verde_gendarme
-        ws[col].alignment = Alignment(horizontal="center")
-
-    ws['B4'] = total_efectivos
-    ws['C4'] = presentes
-    ws['D4'] = total_novedades
-    ws['E4'] = total_novedades
-    for col in ['B4', 'C4', 'D4', 'E4']:
-        ws[col].font = Font(name="Calibri", size=11, bold=True)
+        ws[col].fill = fill_verde
+        ws[col].alignment = Alignment(horizontal="center", vertical="center")
+    
+    ws['B5'] = TOTAL_ESCUADRON
+    ws['C5'] = st.session_state.presentes_en_instituto
+    ws['D5'] = st.session_state.presentes_en_escuadron
+    ws['E5'] = len(st.session_state.total_ausentes)
+    ws['F5'] = st.session_state.total_entrantes_gd
+    ws['G5'] = st.session_state.total_entrantes_gn
+    ws['H5'] = st.session_state.total_comision
+    
+    for col in ['B5', 'C5', 'D5', 'E5', 'F5', 'G5', 'H5']:
+        ws[col].font = Font(name="Calibri", size=12, bold=True)
         ws[col].border = thin_border
-        ws[col].alignment = Alignment(horizontal="center")
-
-    # Tabla Cuerpo de Novedades
-    ws.cell(row=7, column=1, value="NOVEDADES DEL PERSONAL").font = font_subseccion
-    headers_n = ["ORDEN", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "PRESENTE / AUSENTE", "DESDE", "HASTA", "AULA"]
-    for idx, h in enumerate(headers_n, 1):
-        cell = ws.cell(row=8, column=idx, value=h)
+        ws[col].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[4].height = 22
+    ws.row_dimensions[5].height = 25
+    
+    ws['A8'] = "NOVEDADES DEL PERSONAL (AUSENTES JUSTIFICADOS)"
+    ws['A8'].font = font_subtitulo
+    
+    headers_nov = ["ORDEN", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "DETALLE", "DESDE", "HASTA", "AULA"]
+    for idx, h in enumerate(headers_nov, 1):
+        cell = ws.cell(row=9, column=idx, value=h)
         cell.font = font_header
-        cell.fill = fill_verde_gendarme
+        cell.fill = fill_verde
         cell.alignment = Alignment(horizontal="center", vertical="center")
-
-    row_idx = 9
-    for nov in st.session_state.novedades_lista:
-        match = df[df['ORDEN_LIMP'] == nov.get("orden")]
-        grado_c = match.iloc[0].get("GRADO", "") if not match.empty else ""
-        dni_c = match.iloc[0].get("DNI", "") if not match.empty else ""
-        ce_c = match.iloc[0].get("CE", "") if not match.empty else ""
-        aula_c = match.iloc[0].get("AULA", "") if not match.empty else ""
-
-        ws.cell(row=row_idx, column=1, value=nov.get("orden")).alignment = Alignment(horizontal="center")
-        ws.cell(row=row_idx, column=2, value=grado_c).alignment = Alignment(horizontal="center")
+    
+    row_idx = 10
+    novedades_ordenadas = sorted(st.session_state.novedades_lista, key=lambda x: (x.get('aula', ''), int(x.get('orden', 0))))
+    
+    for nov in novedades_ordenadas:
+        orden = int(nov.get("orden"))
+        match = df[df['ORDEN_LIMP'] == orden]
+        if match.empty: continue
+        
+        estado_real = asistencia_manual.get(orden, "AUSENTE")
+        
+        ws.cell(row=row_idx, column=1, value=orden).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_idx, column=2, value=match.iloc[0].get("GRADO", "")).alignment = Alignment(horizontal="center")
         ws.cell(row=row_idx, column=3, value=nov.get("nombre"))
-        ws.cell(row=row_idx, column=4, value=dni_c).alignment = Alignment(horizontal="center")
-        ws.cell(row=row_idx, column=5, value=ce_c).alignment = Alignment(horizontal="center")
-        ws.cell(row=row_idx, column=6, value=nov.get("estado", "S/D"))
-        ws.cell(row=row_idx, column=7, value="AUSENTE").alignment = Alignment(horizontal="center")
+        ws.cell(row=row_idx, column=4, value=match.iloc[0].get("DNI", "")).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_idx, column=5, value=match.iloc[0].get("CE", "")).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_idx, column=6, value=nov.get("estado", "S/D")).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_idx, column=7, value=nov.get("detalle", ""))
         ws.cell(row=row_idx, column=8, value=nov.get("fecha_ini", "")).alignment = Alignment(horizontal="center")
         ws.cell(row=row_idx, column=9, value=nov.get("fecha_fin", "")).alignment = Alignment(horizontal="center")
-        ws.cell(row=row_idx, column=10, value=aula_c).alignment = Alignment(horizontal="center")
+        ws.cell(row=row_idx, column=10, value=match.iloc[0].get("AULA", "")).alignment = Alignment(horizontal="center")
         
+        fill_fila = fill_rojo_claro if estado_real == "AUSENTE" else fill_azul_claro
         for col_b in range(1, 11):
             ws.cell(row=row_idx, column=col_b).font = font_datos
             ws.cell(row=row_idx, column=col_b).border = thin_border
+            ws.cell(row=row_idx, column=col_b).fill = fill_fila
         row_idx += 1
-
+    
     row_idx += 2
-    ws.cell(row=row_idx, column=1, value="OBSERVACIONES GENERALES E INGRESOS").font = font_subseccion
+    ws.cell(row=row_idx, column=1, value="HORARIOS DE INGRESO - " + st.session_state.dia_actual.upper()).font = font_subtitulo
     row_idx += 1
     
-    items_defecto = [
-        "• Ingreso horario diferencial 0600 a 0620 hs: Aulas 18 TM, 24 TM y 23 TT.",
-        "• Ingreso horario diferencial 0810 hs: Aulas 23 TM y 28 TM.",
-        "• Ingreso horario diferencial 0900 a 0915 hs: Aula 26 TM.",
-        "• Descanso servicio de armas nocturno: 32 ASP III Año.",
-        "• Ingreso diferencial AOP: Aula 7 TT y Aula 8 TT."
-    ]
-    for item in items_defecto:
-        ws.cell(row=row_idx, column=1, value=item).font = Font(italic=True, size=10)
+    grupos_ingreso = {}
+    for aula in AULAS_UNICAS:
+        hor = st.session_state.horarios_hoy.get(aula, {"ent_m": "06:00", "tipo_ingreso": "Normal"})
+        hora_ent = hor.get('ent_m', '06:00')
+        tipo = hor.get('tipo_ingreso', 'Normal')
+        llave = (hora_ent, tipo)
+        
+        if llave not in grupos_ingreso:
+            grupos_ingreso[llave] = {"aulas": [], "presentes": 0}
+        
+        grupos_ingreso[llave]["aulas"].append(aula)
+        
+        alumnos_aula = df[df['AULA'] == aula]
+        for _, r in alumnos_aula.iterrows():
+            orden_r = int(r['ORDEN_LIMP'])
+            if orden_r not in st.session_state.total_ausentes and orden_r not in entrantes_guardia_diurna:
+                grupos_ingreso[llave]["presentes"] += 1
+    
+    grupos_ordenados = sorted(grupos_ingreso.items(), key=lambda x: x[0][0])
+    
+    for (hora, tipo), datos in grupos_ordenados:
+        if datos["presentes"] > 0: # Solo mostrar si hay alguien presente
+            aulas_str = ", ".join(sorted(datos["aulas"]))
+            texto = f"• Ingreso {hora} hs ({tipo}): Aula(s) {aulas_str} — Ingresan {datos['presentes']} aspirante(s)."
+            ws.cell(row=row_idx, column=1, value=texto).font = font_observacion
+            ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+            row_idx += 1
+    
+    row_idx += 1
+    ws.cell(row=row_idx, column=1, value="OBSERVACIONES").font = font_subtitulo
+    row_idx += 1
+    
+    if st.session_state.total_entrantes_gd > 0:
+        ws.cell(row=row_idx, column=1, value=f"• Se encuentran {st.session_state.total_entrantes_gd} aspirante(s) como ENTRANTE GUARDIA DIURNA (presentes en instituto, fuera del escuadrón).").font = font_observacion
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
         row_idx += 1
-
-    anchos = {"A": 10, "B": 12, "C": 35, "D": 15, "E": 12, "F": 22, "G": 22, "H": 14, "I": 14, "J": 12}
+    
+    if st.session_state.total_entrantes_gn > 0:
+        ws.cell(row=row_idx, column=1, value=f"• Se encuentran {st.session_state.total_entrantes_gn} aspirante(s) como ENTRANTE GUARDIA NOCTURNA.").font = font_observacion
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+        row_idx += 1
+    
+    if st.session_state.total_comision > 0:
+        ws.cell(row=row_idx, column=1, value=f"• {st.session_state.total_comision} aspirante(s) en COMISIÓN o AUTORIZADO.").font = font_observacion
+        ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=10)
+        row_idx += 1
+    
+    anchos = {"A": 8, "B": 10, "C": 35, "D": 12, "E": 10, "F": 22, "G": 25, "H": 12, "I": 12, "J": 10}
     for l, w in anchos.items():
         ws.column_dimensions[l].width = w
-
-    wb.save(buffer_general)
-    buffer_general.seek(0)
-
-    # 📥 BOTÓN PRINCIPAL GENERAL VISIBLE
+    
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    
     st.download_button(
-        label="📊 DESCARGAR PARTE DIARIO GENERAL (EXCEL)",
-        data=buffer_general,
-        file_name=f"PARTE_DIARIO_ESCUADRON_H_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx",
+        label="📥 DESCARGAR PARTE DIARIO (EXCEL)",
+        data=output,
+        file_name=f"PARTE_DIARIO_ESCUADRON_H_{st.session_state.fecha_reporte.strftime('%d%m%Y')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         type="primary",
         use_container_width=True
     )
-
