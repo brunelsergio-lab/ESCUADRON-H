@@ -377,45 +377,96 @@ with tab_nov:
                 st.rerun()
 
         # ==============================================================================
-    # 📋 LISTADO DE NOVEDADES ORDENADO
+    # 📋 TABLA DE NOVEDADES ORDENADA
     # ==============================================================================
     if st.session_state.novedades_lista:
         st.subheader("📋 Novedades Registradas")
-        st.info("💡 Listado ordenado por: **Estado ➔ Aula ➔ Número de Orden**")
+        st.info("💡 Tabla ordenada por: **Estado ➔ Aula ➔ Número de Orden**")
         
-        # 1. ORDENAMOS la lista en el session_state para que la visualización y los índices de los botones coincidan perfectamente
-        st.session_state.novedades_lista = sorted(
+        # 1. ORDENAR LAS NOVEDADES
+        novedades_ordenadas = sorted(
             st.session_state.novedades_lista, 
             key=lambda x: (
-                x.get('estado', 'ZZZ'),          # Prioridad 1: Agrupa por tipo de novedad (ART, COMISIÓN, etc.)
-                x.get('aula', 'ZZZ'),            # Prioridad 2: Dentro del estado, agrupa por Aula
-                int(x.get('orden', 999))         # Prioridad 3: Dentro del aula, ordena por número de orden ascendente
+                x.get('estado', 'ZZZ'),
+                x.get('aula', 'ZZZ'),
+                int(x.get('orden', 999))
             )
         )
         
-        # 2. RENDERIZADO
-        for idx, nov in enumerate(st.session_state.novedades_lista):
-            col_datos, col_edit, col_borrar = st.columns([6, 1, 1])
-            with col_datos:
-                est_limpio = str(nov['estado']).replace("<span>", "").replace("</span>", "")
-                
-                # Buscamos el estado de presentismo real para mostrarlo al lado del nombre
-                asis_actual = asistencia_manual.get(int(nov['orden']), "AUSENTE")
-                color_asis = "🟢 PRESENTE" if asis_actual == "PRESENTE" else "🔴 AUSENTE"
-                
-                # Formato visual mejorado
-                st.markdown(f"**{nov['nombre']}** | **[{est_limpio}]** | {color_asis} | 🏫 Aula: **{nov['aula']}** | 🔢 Orden: **{nov['orden']}**")
-                st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | 📝 {nov['detalle']} (DNI: {nov['dni']})")
+        # 2. CREAR DATAFRAME PARA VISUALIZACIÓN
+        datos_tabla = []
+        for idx, nov in enumerate(novedades_ordenadas):
+            orden = int(nov.get('orden'))
+            asis_actual = asistencia_manual.get(orden, "AUSENTE")
+            estado_asis = "🟢 PRESENTE" if asis_actual == "PRESENTE" else "🔴 AUSENTE"
             
-            with col_edit:
-                if st.button("✏️", key=f"edit_{idx}", help="Editar esta novedad"):
-                    st.session_state.editando_idx = idx
+            datos_tabla.append({
+                "N°": idx + 1,
+                "Orden": orden,
+                "Aula": nov.get('aula', ''),
+                "Grado": nov.get('grado', ''),
+                "Apellido y Nombre": nov.get('nombre', ''),
+                "DNI": nov.get('dni', ''),
+                "Novedad": str(nov.get('estado', '')).replace("<span>", "").replace("</span>", ""),
+                "Detalle": nov.get('detalle', ''),
+                "Desde": nov.get('fecha_ini', ''),
+                "Hasta": nov.get('fecha_fin', ''),
+                "Presentismo": estado_asis
+            })
+        
+        df_novedades = pd.DataFrame(datos_tabla)
+        
+        # 3. MOSTRAR TABLA CON FORMATO
+        st.dataframe(
+            df_novedades,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "N°": st.column_config.NumberColumn("N°", help="Número de fila", width="small"),
+                "Orden": st.column_config.NumberColumn("Orden", help="Número de orden del aspirante"),
+                "Aula": st.column_config.TextColumn("Aula", width="small"),
+                "Grado": st.column_config.TextColumn("Grado", width="small"),
+                "Apellido y Nombre": st.column_config.TextColumn("Apellido y Nombre", width="medium"),
+                "DNI": st.column_config.TextColumn("DNI", width="small"),
+                "Novedad": st.column_config.TextColumn("Novedad", width="small"),
+                "Detalle": st.column_config.TextColumn("Detalle", width="medium"),
+                "Desde": st.column_config.TextColumn("Desde", width="small"),
+                "Hasta": st.column_config.TextColumn("Hasta", width="small"),
+                "Presentismo": st.column_config.TextColumn("Presentismo", width="small")
+            }
+        )
+        
+        # 4. BOTONES DE ACCIÓN BAJO LA TABLA
+        st.divider()
+        st.markdown("#### 🔧 Acciones sobre Novedades")
+        
+        col_sel1, col_sel2 = st.columns([3, 1])
+        with col_sel1:
+            opciones_novedades = [
+                f"#{i+1} | Orden {row['Orden']} | {row['Apellido y Nombre']} | {row['Novedad']} | {row['Aula']}"
+                for i, row in df_novedades.iterrows()
+            ]
+            seleccion = st.selectbox(
+                "Seleccionar novedad para editar/eliminar:",
+                opciones_novedades,
+                key="sel_nov_accion"
+            )
+        
+        if seleccion:
+            idx_seleccionado = opciones_novedades.index(seleccion)
+            nov_seleccionada = novedades_ordenadas[idx_seleccionado]
+            
+            col_btn_edit, col_btn_del = st.columns(2)
+            with col_btn_edit:
+                if st.button("✏️ Editar Novedad Seleccionada", type="primary", use_container_width=True):
+                    st.session_state.editando_idx = idx_seleccionado
                     st.rerun()
             
-            with col_borrar:
-                if st.button("🗑️", key=f"del_{idx}", help="Eliminar esta novedad"):
-                    eliminar_novedad(nov['id'])
-                    st.session_state.novedades_lista = obtener_novedades() # Recargamos desde la BD
+            with col_btn_del:
+                if st.button("🗑️ Eliminar Novedad Seleccionada", type="secondary", use_container_width=True):
+                    eliminar_novedad(nov_seleccionada['id'])
+                    st.session_state.novedades_lista = obtener_novedades()
+                    st.success(f"✅ Novedad de **{nov_seleccionada['nombre']}** eliminada")
                     st.rerun()
 
 # --- TAB: SEGUIMIENTO ---
