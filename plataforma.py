@@ -211,13 +211,21 @@ st.markdown('<div class="header-title">ESCUADRÓN H "CABO MARCELO GODOY"</div>',
 
 c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
 with c1: st.metric("TOTAL", TOTAL_ESCUADRON)
-with c2: st.metric("EN INSTITUTO", presentes_en_instituto, delta=f"-{len(total_ausentes)} aus." if total_ausentes else None)
-with c3: st.metric("EN ESCUADRÓN", presentes_en_escuadron, help="Presentes en instituto menos entrantes guardia diurna")
-with c4: st.metric("AUSENTES", len(total_ausentes), delta_color="inverse" if total_ausentes else "normal")
-with c5: st.metric("GUARDIA D.", total_entrantes_gd, help="En instituto, no en escuadrón")
-with c6: st.metric("GUARDIA N.", total_entrantes_gn)
-with c7: st.metric("COMISIÓN", total_comision)
-with c8: st.metric("DISPONIBLES", presentes_en_escuadron - fuera_por_aula)
+with c2: 
+    # CORREGIDO: total_ausentes ya es un número, no usamos len()
+    st.metric("EN INSTITUTO", presentes_en_instituto, delta=f"-{total_ausentes} aus." if total_ausentes > 0 else None)
+with c3: 
+    st.metric("EN ESCUADRÓN", presentes_en_escuadron, help="Presentes en instituto menos entrantes guardia diurna")
+with c4: 
+    st.metric("AUSENTES", total_ausentes, delta_color="inverse" if total_ausentes > 0 else "normal")
+with c5: 
+    st.metric("GUARDIA D.", total_entrantes_gd, help="En instituto, no en escuadrón")
+with c6: 
+    st.metric("GUARDIA N.", total_entrantes_gn)
+with c7: 
+    st.metric("COMISIÓN", total_comision)
+with c8: 
+    st.metric("DISPONIBLES", presentes_en_escuadron - fuera_por_aula)
 st.markdown('</div>', unsafe_allow_html=True)
 
 st.divider()
@@ -531,7 +539,6 @@ with tab_seg:
         alumnos = df[df['AULA'] == aula]
         total = len(alumnos)
         ausentes = sum(1 for n in st.session_state.novedades_lista if n['aula'] == aula and n['estado'] in ['ART', 'DAF', 'LES', 'SSD'])
-        
         c1, c2, c3, c4 = st.columns([2, 2, 4, 1])
         with c1:
             st.markdown(f"**{aula}** (Tot: {total} | Aus: {ausentes})")
@@ -650,7 +657,9 @@ with tab_res:
     with col_a: st.metric("TOTAL", TOTAL_ESCUADRON)
     with col_b: st.metric("EN INSTITUTO", st.session_state.presentes_en_instituto)
     with col_c: st.metric("EN ESCUADRÓN", st.session_state.presentes_en_escuadron)
-    with col_d: st.metric("AUSENTES", len(st.session_state.total_ausentes))
+    with col_d: 
+        # CORREGIDO: Sin len()
+        st.metric("AUSENTES", st.session_state.total_ausentes) 
     with col_e: st.metric("GUARDIA D.", st.session_state.total_entrantes_gd)
     
     st.divider()
@@ -660,42 +669,13 @@ with tab_res:
     ws.title = "PARTE DIARIO"
     ws.views.sheetView[0].showGridLines = False
     
-    font_titulo = Font(name="Calibri", size=14, bold=True)
-    font_subtitulo = Font(name="Calibri", size=11, bold=True)
-    font_header = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
-    font_datos = Font(name="Calibri", size=10)
-    font_observacion = Font(name="Calibri", size=10, italic=True)
-    fill_verde = PatternFill(start_color="1E4620", end_color="1E4620", fill_type="solid")
-    fill_rojo_claro = PatternFill(start_color="FDE8E8", end_color="FDE8E8", fill_type="solid")
-    fill_azul_claro = PatternFill(start_color="E1F5FE", end_color="E1F5FE", fill_type="solid")
-    thin_border = Border(left=Side(style='thin', color='BFBFBF'), right=Side(style='thin', color='BFBFBF'), top=Side(style='thin', color='BFBFBF'), bottom=Side(style='thin', color='BFBFBF'))
-    
-    ws.merge_cells('A1:J1')
-    ws['A1'] = f"PARTE DIARIO DEL ESCUADRÓN H - {st.session_state.fecha_reporte.strftime('%d%b%y').upper()}"
-    ws['A1'].font = font_titulo
-    ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
-    ws.row_dimensions[1].height = 30
-    
-    ws['A2'] = f"Día: {st.session_state.dia_actual.capitalize()}"
-    ws['A2'].font = Font(name="Calibri", size=10, italic=True)
-    
-    ws['B4'] = "TOTAL"
-    ws['C4'] = "EN INSTITUTO"
-    ws['D4'] = "EN ESCUADRÓN"
-    ws['E4'] = "AUSENTES"
-    ws['F4'] = "GUARDIA D."
-    ws['G4'] = "GUARDIA N."
-    ws['H4'] = "COMISIÓN"
-    
-    for col in ['B4', 'C4', 'D4', 'E4', 'F4', 'G4', 'H4']:
-        ws[col].font = font_header
-        ws[col].fill = fill_verde
-        ws[col].alignment = Alignment(horizontal="center", vertical="center")
+    # ... (mantené todo el código de estilos font_titulo, etc. que ya tenías) ...
     
     ws['B5'] = TOTAL_ESCUADRON
     ws['C5'] = st.session_state.presentes_en_instituto
     ws['D5'] = st.session_state.presentes_en_escuadron
-    ws['E5'] = len(st.session_state.total_ausentes)
+    # CORREGIDO: Sin len()
+    ws['E5'] = st.session_state.total_ausentes 
     ws['F5'] = st.session_state.total_entrantes_gd
     ws['G5'] = st.session_state.total_entrantes_gn
     ws['H5'] = st.session_state.total_comision
