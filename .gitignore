@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+parte_diario.db
+*.xlsx
+*.xls
+*.log
