@@ -610,46 +610,102 @@ st.markdown(f"""
         display: none !important;
     }}
     .rrhh-panel {{
-        background: #111827;
-        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: linear-gradient(135deg, #2f3717 0%, #4B5320 48%, #111827 100%);
+        border: 1px solid rgba(166, 160, 120, 0.45);
         border-radius: 8px;
         padding: 1rem;
         margin: 0.25rem 0 1rem 0;
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
     }}
     .rrhh-head {{
         display: flex;
         justify-content: space-between;
         gap: 1rem;
         align-items: flex-start;
-        margin-bottom: 0.9rem;
+        margin-bottom: 0.85rem;
+    }}
+    .rrhh-brand {{
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }}
+    .rrhh-emblem {{
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        display: grid;
+        place-items: center;
+        background: rgba(232, 234, 215, 0.14);
+        border: 1px solid rgba(232, 234, 215, 0.28);
+        color: #F9FAFB;
+        font-weight: 900;
+        letter-spacing: 0.04em;
     }}
     .rrhh-eyebrow {{
-        margin: 0 0 0.25rem 0;
-        color: #9CA3AF;
-        font-size: 0.76rem;
-        letter-spacing: 0.08em;
+        margin: 0 0 0.2rem 0;
+        color: #D8DEC2;
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
         text-transform: uppercase;
+        font-weight: 800;
     }}
     .rrhh-title {{
         margin: 0;
-        color: #F9FAFB;
-        font-size: 1.2rem;
-        line-height: 1.25;
-        font-weight: 800;
+        color: #FFFFFF;
+        font-size: 1.35rem;
+        line-height: 1.15;
+        font-weight: 900;
     }}
     .rrhh-subtitle {{
-        margin: 0.25rem 0 0 0;
-        color: #CBD5E1;
+        margin: 0.28rem 0 0 0;
+        color: #E8EAD7;
         font-size: 0.9rem;
     }}
-    .rrhh-date {{
-        border: 1px solid rgba(148, 163, 184, 0.28);
+    .rrhh-status-box {{
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        align-items: flex-end;
+    }}
+    .rrhh-date, .rrhh-live {{
+        border: 1px solid rgba(232, 234, 215, 0.34);
         border-radius: 999px;
-        color: #E5E7EB;
-        padding: 0.35rem 0.7rem;
-        font-size: 0.82rem;
+        color: #F9FAFB;
+        background: rgba(17, 24, 39, 0.42);
+        padding: 0.34rem 0.7rem;
+        font-size: 0.8rem;
         white-space: nowrap;
-        background: rgba(15, 23, 42, 0.7);
+        font-weight: 700;
+    }}
+    .rrhh-live {{
+        color: #E8EAD7;
+    }}
+    .rrhh-access {{
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 0.55rem;
+        margin-bottom: 0.8rem;
+    }}
+    .rrhh-access-card {{
+        border: 1px solid rgba(232, 234, 215, 0.22);
+        background: rgba(17, 24, 39, 0.34);
+        border-radius: 8px;
+        padding: 0.65rem 0.75rem;
+        min-height: 68px;
+    }}
+    .rrhh-access-card span {{
+        display: block;
+        color: #D8DEC2;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-weight: 800;
+    }}
+    .rrhh-access-card strong {{
+        display: block;
+        color: #FFFFFF;
+        margin-top: 0.25rem;
+        font-size: 0.95rem;
     }}
     .nov-monitor {{
         border: 1px solid rgba(148, 163, 184, 0.22);
@@ -722,18 +778,19 @@ st.markdown(f"""
         gap: 0.65rem;
     }}
     .rrhh-kpi {{
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(232, 234, 215, 0.16);
+        background: rgba(255, 255, 255, 0.045);
         border-radius: 8px;
         padding: 0.75rem;
         min-height: 96px;
     }}
     .rrhh-kpi span {{
         display: block;
-        color: #A7B0BE;
+        color: #D8DEC2;
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
+        font-weight: 800;
     }}
     .rrhh-kpi strong {{
         display: block;
@@ -744,75 +801,50 @@ st.markdown(f"""
     }}
     .rrhh-kpi small {{
         display: block;
-        color: #94A3B8;
+        color: #CBD5E1;
         font-size: 0.78rem;
         margin-top: 0.3rem;
     }}
-    .rrhh-kpi-ok {{
-        border-left: 3px solid #22C55E;
-    }}
-    .rrhh-kpi-warn {{
-        border-left: 3px solid #F59E0B;
-    }}
-    .rrhh-kpi-alert {{
-        border-left: 3px solid #EF4444;
-    }}
+    .rrhh-kpi-ok {{ border-left: 3px solid #8FA650; }}
+    .rrhh-kpi-warn {{ border-left: 3px solid #D8B55A; }}
+    .rrhh-kpi-alert {{ border-left: 3px solid #C05646; }}
     @media (max-width: 720px) {{
-        .rrhh-panel {{
-            padding: 0.85rem;
-        }}
-        .rrhh-head {{
-            display: block;
-        }}
-        .rrhh-date {{
-            display: inline-block;
-            margin-top: 0.7rem;
-        }}
-        .nov-monitor {{
-            padding: 0.65rem;
-            position: sticky;
-            top: 0.25rem;
-            z-index: 10;
-        }}
-        .nov-monitor-head {{
-            display: block;
-            margin-bottom: 0.45rem;
-        }}
-        .nov-monitor-sub {{
-            display: block;
-            margin-top: 0.2rem;
-        }}
-        .nov-monitor-grid {{
-            display: flex;
-            overflow-x: auto;
-            gap: 0.45rem;
-            padding-bottom: 0.1rem;
-        }}
-        .nov-card {{
-            min-width: 245px;
-            flex: 0 0 auto;
-        }}
-        .rrhh-kpi-grid {{
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 0.5rem;
-        }}
-        .rrhh-kpi {{
-            min-height: 86px;
-            padding: 0.65rem;
-        }}
-        .rrhh-kpi strong {{
-            font-size: 1.45rem;
-        }}
+        .rrhh-panel {{ padding: 0.85rem; }}
+        .rrhh-head {{ display: block; }}
+        .rrhh-brand {{ align-items: flex-start; }}
+        .rrhh-emblem {{ width: 42px; height: 42px; }}
+        .rrhh-status-box {{ align-items: flex-start; margin-top: 0.7rem; }}
+        .rrhh-access {{ grid-template-columns: 1fr; gap: 0.45rem; }}
+        .rrhh-title {{ font-size: 1.15rem; }}
+        .nov-monitor {{ padding: 0.65rem; position: sticky; top: 0.25rem; z-index: 10; }}
+        .nov-monitor-head {{ display: block; margin-bottom: 0.45rem; }}
+        .nov-monitor-sub {{ display: block; margin-top: 0.2rem; }}
+        .nov-monitor-grid {{ display: flex; overflow-x: auto; gap: 0.45rem; padding-bottom: 0.1rem; }}
+        .nov-card {{ min-width: 245px; flex: 0 0 auto; }}
+        .rrhh-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }}
+        .rrhh-kpi {{ min-height: 86px; padding: 0.65rem; }}
+        .rrhh-kpi strong {{ font-size: 1.45rem; }}
     }}
 </style>
 <section class="rrhh-panel">
     <div class="rrhh-head">
-        <div>
-            <p class="rrhh-eyebrow">Gestor RRHH - control en instalaciones</p>
-            <h1 class="rrhh-title">Escuadron H "Cabo Marcelo Godoy"</h1>
-            <p class="rrhh-subtitle">Situacion diaria, presentismo, ubicacion y novedades activas.</p>
+        <div class="rrhh-brand">
+            <div class="rrhh-emblem">EH</div>
+            <div>
+                <p class="rrhh-eyebrow">Sistema compartido de control de personal</p>
+                <h1 class="rrhh-title">Escuadron H "Cabo Marcelo Godoy"</h1>
+                <p class="rrhh-subtitle">Parte diario, novedades, presentismo, ubicacion y reportes en tiempo real.</p>
+            </div>
         </div>
-        <div class="rrhh-date">Parte: {st.session_state.fecha_reporte.strftime('%d/%m/%Y')}</div>
+        <div class="rrhh-status-box">
+            <div class="rrhh-live">Sistema operativo</div>
+            <div class="rrhh-date">Parte: {st.session_state.fecha_reporte.strftime('%d/%m/%Y')}</div>
+        </div>
+    </div>
+    <div class="rrhh-access">
+        <div class="rrhh-access-card"><span>Trabajo multiusuario</span><strong>Datos centralizados para guardia y control</strong></div>
+        <div class="rrhh-access-card"><span>Seguimiento activo</span><strong>Novedades vigentes hasta su vencimiento</strong></div>
+        <div class="rrhh-access-card"><span>Reportes</span><strong>Excel institucional con formato uniforme</strong></div>
     </div>
     <div class="rrhh-kpi-grid">{kpi_html}</div>
 </section>
