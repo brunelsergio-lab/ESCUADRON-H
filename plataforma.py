@@ -34,11 +34,11 @@ DIAS_SEMANA = {
     6: "Domingo",
 }
 
-ESTADOS_AUSENCIA = {"ART", "DAF", "LES", "SSD", "LAO", "AUTORIZADO", "DESCANSO DE GUARDIA"}
+ESTADOS_AUSENCIA = {"AUSENTE", "ART", "DAF", "LES", "SSD", "LAO", "AUTORIZADO", "DESCANSO DE GUARDIA"}
 ESTADOS_GUARDIA_DIURNA = {"ENTRANTE GUARDIA DIURNA", "SERVICIO DE ARMAS DIURNA"}
 ESTADOS_GUARDIA_NOCTURNA = {"ENTRANTE GUARDIA NOCTURNA", "SERVICIO DE ARMAS NOCTURNA"}
 AMBITOS_NOVEDAD = {
-    "AUSENTE": "Ausente / no presente",
+    "AUSENTE": "Ausente",
     "INSTITUTO": "Presente en instituto",
     "ESCUADRON": "Presente en escuadrón",
 }
@@ -53,6 +53,14 @@ def ambito_por_defecto(estado):
     if estado == "COMISIÓN":
         return "INSTITUTO"
     return "ESCUADRON"
+
+def ambito_efectivo(novedad):
+    estado = novedad.get('estado', '')
+    ambito_guardado = novedad.get('ambito')
+    ambito_estado = ambito_por_defecto(estado)
+    if estado in {"AUSENTE", "PRESENTE EN INSTITUTO", "PRESENTE EN ESCUADRÓN"}:
+        return ambito_estado
+    return ambito_guardado or ambito_estado
 
 def es_tercer_anio(valor):
     return "III" in str(valor).upper() or "TERCER" in str(valor).upper()
@@ -381,16 +389,23 @@ else:
 
 # 🔹 2. CÁLCULO DE MÉTRICAS (Se recalcula en cada interacción)
 ambito_por_orden = {
-    n['orden']: n.get('ambito') or ambito_por_defecto(n.get('estado', ''))
+    n['orden']: ambito_efectivo(n)
     for n in st.session_state.novedades_lista
 }
 ausentes_fijos = {orden for orden, ambito in ambito_por_orden.items() if ambito == "AUSENTE"}
 presentes_instituto_novedad = {orden for orden, ambito in ambito_por_orden.items() if ambito in {"INSTITUTO", "ESCUADRON"}}
 presentes_escuadron_novedad = {orden for orden, ambito in ambito_por_orden.items() if ambito == "ESCUADRON"}
 ausentes_manuales = {orden for orden, estado in st.session_state.estado_asistencia.items() if estado == "AUSENTE"}
-presentes_manuales = {orden for orden, estado in st.session_state.estado_asistencia.items() if estado == "PRESENTE"}
+presentes_instituto_manuales = {
+    orden for orden, estado in st.session_state.estado_asistencia.items()
+    if estado in {"PRESENTE", "PRESENTE EN INSTITUTO", "PRESENTE EN ESCUADRÓN"}
+}
+presentes_escuadron_manuales = {
+    orden for orden, estado in st.session_state.estado_asistencia.items()
+    if estado in {"PRESENTE", "PRESENTE EN ESCUADRÓN"}
+}
 
-total_ausentes = (ausentes_fijos | ausentes_manuales) - presentes_manuales
+total_ausentes = (ausentes_fijos | ausentes_manuales) - presentes_instituto_manuales
 
 en_instituto = 0
 fuera_por_aula = 0
@@ -400,9 +415,9 @@ for _, row in df.iterrows():
     aula = row['AULA']
     if orden in total_ausentes: continue
     en_aula_instituto = st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO') == 'EN INSTITUTO'
-    if orden in presentes_instituto_novedad or en_aula_instituto:
+    if orden in presentes_instituto_novedad or orden in presentes_instituto_manuales or en_aula_instituto:
         en_instituto += 1
-        if orden in presentes_escuadron_novedad or (orden not in ambito_por_orden and en_aula_instituto):
+        if orden in presentes_escuadron_novedad or orden in presentes_escuadron_manuales or (orden not in ambito_por_orden and orden not in presentes_instituto_manuales and en_aula_instituto):
             presentes_escuadron += 1
     else:
         fuera_por_aula += 1
@@ -414,7 +429,9 @@ df_presentes_primera = df[
     (~df['ORDEN_LIMP'].isin(total_ausentes)) &
     (
         df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
+        df['ORDEN_LIMP'].isin(presentes_escuadron_manuales) |
         ((~df['ORDEN_LIMP'].isin(ambito_por_orden.keys())) &
+         (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)) &
          (df['AULA'].map(lambda aula: st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO')) == 'EN INSTITUTO'))
     )
 ]
@@ -687,8 +704,15 @@ with tab_nov:
         orden = data["orden"]
         nombre_asp = data["nombre"]
 
-        col_btn_p, col_btn_a = st.columns(2)
+        col_btn_aus, col_btn_p, col_btn_a = st.columns(3)
         
+        with col_btn_aus:
+            if st.button("Ausente", type="secondary", use_container_width=True, key="btn_aus_edit"):
+                st.session_state.sel_estado = "AUSENTE"
+                st.session_state.sel_ambito = "AUSENTE"
+                st.toast(f"{nombre_asp} preparado como ausente")
+                st.rerun()
+
         with col_btn_p:
             if st.button("Presente en instituto", type="secondary", use_container_width=True, key="btn_pres_inst_edit"):
                 st.session_state.sel_estado = "PRESENTE EN INSTITUTO"
@@ -732,7 +756,14 @@ with tab_nov:
             st.divider()
             st.markdown(f"### Control de presencia: **{nombre_asp}**")
 
-            col_btn_p, col_btn_a, col_btn_c = st.columns([2, 2, 1])
+            col_btn_aus, col_btn_p, col_btn_a, col_btn_c = st.columns([2, 2, 2, 1])
+
+            with col_btn_aus:
+                if st.button("Ausente", type="secondary", use_container_width=True, key="btn_aus"):
+                    st.session_state.sel_estado = "AUSENTE"
+                    st.session_state.sel_ambito = "AUSENTE"
+                    st.toast(f"{nombre_asp} preparado como ausente")
+                    st.rerun()
 
             with col_btn_p:
                 if st.button("Presente en instituto", type="secondary", use_container_width=True, key="btn_pres_inst"):
@@ -761,6 +792,7 @@ with tab_nov:
         c1, c2 = st.columns(2)
         with c1:
             opts = [
+    "AUSENTE",
     "ART",
     "DAF",
     "LES",
@@ -780,17 +812,8 @@ with tab_nov:
         with c2:
             det = st.text_input("Detalle:", value=data.get('detalle', ''), key="txt_detalle")
 
-        ambito_actual = data.get('ambito') or ambito_por_defecto(est)
-        ambito_keys = list(AMBITOS_NOVEDAD.keys())
-        ambito_idx = ambito_keys.index(ambito_actual) if ambito_actual in ambito_keys else 0
-        ambito = st.radio(
-            "Impacto en control del personal:",
-            ambito_keys,
-            index=ambito_idx,
-            format_func=lambda x: AMBITOS_NOVEDAD[x],
-            key="sel_ambito",
-            horizontal=True
-        )
+        ambito = ambito_por_defecto(est)
+        st.caption(f"Impacto en control: {AMBITOS_NOVEDAD.get(ambito, ambito)}")
 
         cf1, cf2 = st.columns(2)
         with cf1:
@@ -856,7 +879,7 @@ with tab_nov:
             with col_datos:
                 badge_color = "red" if nov['estado'] in ['ART','DAF','LES'] else "orange"
                 st.markdown(f"**{nov['nombre']}** <span style='color:{badge_color};font-weight:bold'>[{nov['estado']}]</span>  |  DNI: {nov['dni']}  |  CE: {nov['ce']}", unsafe_allow_html=True)
-                ambito_lbl = AMBITOS_NOVEDAD.get(nov.get('ambito') or ambito_por_defecto(nov.get('estado', '')), "Sin definir")
+                ambito_lbl = AMBITOS_NOVEDAD.get(ambito_efectivo(nov), "Sin definir")
                 st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {ambito_lbl} | 📝 {nov['detalle']}")
             with col_edit:
                 if st.button("✏️", key=f"edit_{idx}", use_container_width=True, help="Editar"):
@@ -908,7 +931,7 @@ with tab_seg:
             ubic_key = f"ubicacion_{prefijo}"
             alumnos = df[df['AULA'] == aula]
             total = len(alumnos)
-            ausentes = sum(1 for n in st.session_state.novedades_lista if n['aula'] == aula and (n.get('ambito') or ambito_por_defecto(n.get('estado', ''))) == 'AUSENTE')
+            ausentes = sum(1 for n in st.session_state.novedades_lista if n['aula'] == aula and ambito_efectivo(n) == 'AUSENTE')
             presentes = total - ausentes
             is_inside = cfg[estado_key] == 'EN INSTITUTO'
             ubicacion_actual = cfg.get(ubic_key, 'EN AULA')
@@ -1179,26 +1202,20 @@ with tab_res:
     st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
     st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
 
-    # ==========================================================
-    # AUSENTES (SOLO MANUALES)
-    # ==========================================================
-
+    ambito_resumen = {
+        n['orden']: ambito_efectivo(n)
+        for n in st.session_state.novedades_lista
+    }
+    ausentes_resumen = {orden for orden, ambito in ambito_resumen.items() if ambito == "AUSENTE"}
     ausentes_manuales_resumen = {
-        orden
-        for orden, estado in st.session_state.estado_asistencia.items()
+        orden for orden, estado in st.session_state.estado_asistencia.items()
         if estado == "AUSENTE"
     }
-
     presentes_manuales_resumen = {
-        orden
-        for orden, estado in st.session_state.estado_asistencia.items()
-        if estado == "PRESENTE"
+        orden for orden, estado in st.session_state.estado_asistencia.items()
+        if estado in {"PRESENTE", "PRESENTE EN INSTITUTO", "PRESENTE EN ESCUADRÓN"}
     }
-
-    total_ausentes_resumen = (
-        ausentes_manuales_resumen
-        - presentes_manuales_resumen
-    )
+    total_ausentes_resumen = (ausentes_resumen | ausentes_manuales_resumen) - presentes_manuales_resumen
 
     # ==========================================================
     # RESUMEN POR AULA
@@ -1217,9 +1234,7 @@ with tab_res:
             {
                 row['ORDEN_LIMP']
                 for _, row in alumnos.iterrows()
-                if st.session_state.estado_asistencia.get(
-                    row['ORDEN_LIMP']
-                ) == "AUSENTE"
+                if row['ORDEN_LIMP'] in total_ausentes_resumen
             }
         )
 
