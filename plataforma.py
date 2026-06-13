@@ -1625,12 +1625,67 @@ with tab_res:
             columnas = ["Fecha/hora", "Apellido", "Nombre", "DNI", "CE", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.info("No hay movimientos para los filtros seleccionados.")
 
-        csv_df = df_mov[columnas] if not df_mov.empty else pd.DataFrame(columns=columnas)
+        historial_df = df_mov[columnas] if not df_mov.empty else pd.DataFrame(columns=columnas)
+        wb_hist = openpyxl.Workbook()
+        ws_hist = wb_hist.active
+        ws_hist.title = "HISTORIAL"
+        from openpyxl.styles import Alignment, PatternFill, Border, Side
+
+        titulo_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+        subtitulo_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
+        header_fill = PatternFill(start_color="2F75B5", end_color="2F75B5", fill_type="solid")
+        thin = Side(style="thin", color="B7B7B7")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        ws_hist.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(columnas))
+        ws_hist.cell(1, 1, "ESCUADRON H \"Cabo Marcelo Godoy\"")
+        ws_hist.cell(1, 1).font = Font(bold=True, size=16, color="FFFFFF")
+        ws_hist.cell(1, 1).alignment = Alignment(horizontal="center", vertical="center")
+        ws_hist.cell(1, 1).fill = titulo_fill
+        ws_hist.row_dimensions[1].height = 28
+
+        ws_hist.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(columnas))
+        ws_hist.cell(2, 1, "Historial De Movimientos de Aspirantes")
+        ws_hist.cell(2, 1).font = Font(bold=True, size=13, color="1F4E78")
+        ws_hist.cell(2, 1).alignment = Alignment(horizontal="center", vertical="center")
+        ws_hist.cell(2, 1).fill = subtitulo_fill
+        ws_hist.row_dimensions[2].height = 24
+
+        ws_hist.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(columnas))
+        ws_hist.cell(3, 1, f"Periodo: {fecha_desde_hist.strftime('%d/%m/%Y')} al {fecha_hasta_hist.strftime('%d/%m/%Y')} | Registros: {len(historial_df)}")
+        ws_hist.cell(3, 1).font = Font(italic=True, size=10, color="404040")
+        ws_hist.cell(3, 1).alignment = Alignment(horizontal="center", vertical="center")
+
+        header_row = 5
+        for col_idx, col_name in enumerate(columnas, 1):
+            cell = ws_hist.cell(header_row, col_idx, col_name)
+            cell.font = Font(bold=True, color="FFFFFF")
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = border
+
+        for row_idx, (_, row) in enumerate(historial_df.iterrows(), header_row + 1):
+            for col_idx, col_name in enumerate(columnas, 1):
+                cell = ws_hist.cell(row_idx, col_idx, row.get(col_name, ""))
+                cell.alignment = Alignment(vertical="center", wrap_text=True)
+                cell.border = border
+                if row_idx % 2 == 0:
+                    cell.fill = PatternFill(start_color="F7FBFF", end_color="F7FBFF", fill_type="solid")
+
+        widths = {
+            "Fecha/hora": 20, "Apellido": 18, "Nombre": 28, "DNI": 14, "CE": 12,
+            "Aula": 12, "Motivo": 18, "Presencia": 22, "Desde": 14, "Hasta": 14, "Observación": 36
+        }
+        for col_idx, col_name in enumerate(columnas, 1):
+            ws_hist.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = widths.get(col_name, 16)
+        ws_hist.freeze_panes = "A6"
+        ws_hist.auto_filter.ref = f"A{header_row}:{openpyxl.utils.get_column_letter(len(columnas))}{max(header_row, header_row + len(historial_df))}"
+
         st.download_button(
             "descargar historial de movimiento",
-            data=csv_df.to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"HISTORIAL_MOVIMIENTOS_{fecha_desde_hist.strftime('%d%m%Y')}_{fecha_hasta_hist.strftime('%d%m%Y')}.csv",
-            mime="text/csv",
+            data=excel_bytes(wb_hist),
+            file_name=f"HISTORIAL_MOVIMIENTOS_{fecha_desde_hist.strftime('%d%m%Y')}_{fecha_hasta_hist.strftime('%d%m%Y')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
     else:
