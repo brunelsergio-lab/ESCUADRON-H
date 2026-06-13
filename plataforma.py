@@ -111,7 +111,7 @@ def formatear_lista_novedades(novedades, estado, curso_fn):
         return ".-"
     lineas = []
     for idx, nov in enumerate(filtradas, 1):
-        grado = "ASP III AÑO" if es_tercer_anio(nov.get('grado', '')) else "ASP I"
+        grado = "ASP III ANO" if es_tercer_anio(nov.get('grado', '')) else "ASP I"
         detalle = f" {nov.get('detalle', '').strip()}" if nov.get('detalle') else ""
         lineas.append(f"{idx}. {grado} {nov['nombre']}{detalle} (D: {nov['fecha_ini']}, H: {nov['fecha_fin']})")
     return "\n".join(lineas)
@@ -119,11 +119,11 @@ def formatear_lista_novedades(novedades, estado, curso_fn):
 def formatear_servicio(novedades, estados, curso_fn, titulo):
     filtradas = [n for n in novedades if n['estado'] in estados and curso_fn(n.get('grado', ''))]
     if not filtradas:
-        return f"▫️ {titulo}:"
+        return f"- {titulo}:"
     plural = "ASPIRANTES" if len(filtradas) != 1 else "ASPIRANTE"
-    lineas = [f"▫️ {titulo}: {numero_letras(len(filtradas))} ({len(filtradas)}) {plural}."]
+    lineas = [f"- {titulo}: {numero_letras(len(filtradas))} ({len(filtradas)}) {plural}."]
     for idx, nov in enumerate(filtradas, 1):
-        grado = "ASP III AÑO" if es_tercer_anio(nov.get('grado', '')) else "ASP I"
+        grado = "ASP III ANO" if es_tercer_anio(nov.get('grado', '')) else "ASP I"
         detalle = f" {nov.get('detalle', '').strip()}" if nov.get('detalle') else ""
         lineas.append(f"{idx}. {grado} {nov['nombre']}{detalle}")
     return "\n".join(lineas)
@@ -140,23 +140,23 @@ def generar_minuta_informativa():
     formados_aop = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_aop)])
 
     lineas = [
-        f'MINUTA INFORMATIVA DEL ESCUADRÓN H "CABO MARCELO GODOY" DEL DÍA {fecha_minuta}',
+        f'MINUTA INFORMATIVA DEL ESCUADRON H "CABO MARCELO GODOY" DEL DIA {fecha_minuta}',
         "",
         f"FE: {TOTAL_ESCUADRON}",
         f"P: {disponibles}",
         f"A: {len(total_ausentes)}",
-        f"FORMADOS A PRIMERA OBLIGACIÓN: {primera_total}",
+        f"FORMADOS A PRIMERA OBLIGACION: {primera_total}",
         "",
-        "✅ CURSO DE TERCER AÑO",
+        "CURSO DE TERCER ANO",
         "",
         f"FE: {len(df_tercero)}",
         f"P: {len(df_tercero) - len(ausentes_tercero)}",
         f"A: {len(ausentes_tercero)}",
-        f"FORMADOS PRIMERA OBLIGACIÓN: {formados_tercero}",
+        f"FORMADOS PRIMERA OBLIGACION: {formados_tercero}",
         "",
         "OBS:",
         "",
-        "▫️ INGRESO HORARIO DIFERENCIADO:",
+        "- INGRESO HORARIO DIFERENCIADO:",
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_tercer_anio, "SERVICIO DE ARMAS DIURNA"),
         "",
@@ -164,45 +164,45 @@ def generar_minuta_informativa():
         "",
         "NOVEDADES SANITARIAS:",
         "",
-        "▫️ SIN SERVICIO EN DOMICILIO:",
+        "- SIN SERVICIO EN DOMICILIO:",
         formatear_lista_novedades(novedades, "SSD", es_tercer_anio),
         "",
-        "▫️ ART:",
+        "- ART:",
         formatear_lista_novedades(novedades, "ART", es_tercer_anio),
         "",
-        "▫️ DAF:",
+        "- DAF:",
         formatear_lista_novedades(novedades, "DAF", es_tercer_anio),
         "",
-        "▫️ AUTORIZADO:",
+        "- AUTORIZADO:",
         formatear_lista_novedades(novedades, "AUTORIZADO", es_tercer_anio),
         "",
-        "✅ CURSO AUXILIAR OPERATIVO",
+        "CURSO AUXILIAR OPERATIVO",
         f"FE: {len(df_aop)}",
         f"P: {len(df_aop) - len(ausentes_aop)}",
         f"A: {len(ausentes_aop)}",
-        f"FORMADOS PRIMERA OBLIGACIÓN: {formados_aop}",
+        f"FORMADOS PRIMERA OBLIGACION: {formados_aop}",
         "",
         "OBS:",
         "",
-        "▫️ INGRESO EN HORARIO DIFERENCIAL:.-",
+        "- INGRESO EN HORARIO DIFERENCIAL:.-",
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_aop, "SERVICIO DE ARMAS DIURNO"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, es_aop, "DESCANSO DE SERVICIO DE ARMAS NOCTURNO"),
         "",
-        "▫️ ART",
+        "- ART",
         formatear_lista_novedades(novedades, "ART", es_aop),
         "",
-        "▫️ SIN SERVICIO EN DOMICILIO:",
+        "- SIN SERVICIO EN DOMICILIO:",
         formatear_lista_novedades(novedades, "SSD", es_aop),
         "",
-        "▫️ LAO: (A CUENTA DE LAO)",
+        "- LAO: (A CUENTA DE LAO)",
         formatear_lista_novedades(novedades, "LAO", es_aop),
         "",
-        "▫️ LES:",
+        "- LES:",
         formatear_lista_novedades(novedades, "LES", es_aop),
         "",
-        "▫️ DAF:",
+        "- DAF:",
         formatear_lista_novedades(novedades, "DAF", es_aop),
     ]
     return "\n".join(lineas)
@@ -1573,17 +1573,17 @@ with tab_res:
         if not df_mov.empty:
             fc1, fc2, fc3 = st.columns(3)
             with fc1:
-                modulos_sel = st.multiselect("Módulo", sorted(df_mov["Módulo"].dropna().unique()))
+                modulos_sel = st.multiselect("Módulo", sorted(df_mov["Módulo"].dropna().unique()), placeholder="Todos")
             with fc2:
-                acciones_sel = st.multiselect("Acción", sorted(df_mov["Acción"].dropna().unique()))
+                acciones_sel = st.multiselect("Acción", sorted(df_mov["Acción"].dropna().unique()), placeholder="Todas")
             with fc3:
-                motivos_sel = st.multiselect("Motivo", sorted([m for m in df_mov["Motivo"].dropna().unique() if m]))
+                motivos_sel = st.multiselect("Motivo", sorted([m for m in df_mov["Motivo"].dropna().unique() if m]), placeholder="Todos")
 
             fc4, fc5, fc6 = st.columns(3)
             with fc4:
-                presencias_sel = st.multiselect("Presencia", sorted([p for p in df_mov["Presencia"].dropna().unique() if p]))
+                presencias_sel = st.multiselect("Presencia", sorted([p for p in df_mov["Presencia"].dropna().unique() if p]), placeholder="Todos")
             with fc5:
-                aulas_sel = st.multiselect("Aula", sorted([a for a in df_mov["Aula"].dropna().unique() if a]))
+                aulas_sel = st.multiselect("Aula", sorted([a for a in df_mov["Aula"].dropna().unique() if a]), placeholder="Todas")
             with fc6:
                 buscar_hist = st.text_input("Buscar nombre o detalle", key="buscar_historial_mov")
 
@@ -1606,14 +1606,6 @@ with tab_res:
 
         if not df_mov.empty:
             st.caption(f"{len(df_mov)} movimiento(s) encontrados")
-            resumen_motivos = df_mov[df_mov["Motivo"].fillna("") != ""].groupby("Motivo").agg(
-                Cantidad=("Motivo", "size"),
-                Personal=("Nombre", lambda x: ", ".join(sorted({str(v) for v in x.dropna() if str(v).strip()})))
-            ).reset_index()
-            if not resumen_motivos.empty:
-                st.markdown("#### Resumen por motivo")
-                st.dataframe(resumen_motivos, use_container_width=True, hide_index=True)
-
             columnas = ["Fecha/hora", "Fecha parte", "Módulo", "Acción", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.dataframe(df_mov[columnas], use_container_width=True, hide_index=True)
         else:
