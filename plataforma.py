@@ -1576,24 +1576,14 @@ with tab_res:
         if not df_mov.empty:
             fc1, fc2, fc3 = st.columns(3)
             with fc1:
-                modulos_sel = st.multiselect("Módulo", sorted(df_mov["Módulo"].dropna().unique()), placeholder="Todos")
-            with fc2:
-                acciones_sel = st.multiselect("Acción", sorted(df_mov["Acción"].dropna().unique()), placeholder="Todas")
-            with fc3:
                 motivos_sel = st.multiselect("Motivo", sorted([m for m in df_mov["Motivo"].dropna().unique() if m]), placeholder="Todos")
-
-            fc4, fc5, fc6 = st.columns(3)
-            with fc4:
+            with fc2:
                 presencias_sel = st.multiselect("Presencia", sorted([p for p in df_mov["Presencia"].dropna().unique() if p]), placeholder="Todos")
-            with fc5:
+            with fc3:
                 aulas_sel = st.multiselect("Aula", sorted([a for a in df_mov["Aula"].dropna().unique() if a]), placeholder="Todas")
-            with fc6:
-                buscar_hist = st.text_input("Buscar nombre o detalle", key="buscar_historial_mov")
 
-            if modulos_sel:
-                df_mov = df_mov[df_mov["Módulo"].isin(modulos_sel)]
-            if acciones_sel:
-                df_mov = df_mov[df_mov["Acción"].isin(acciones_sel)]
+            buscar_hist = st.text_input("Buscar nombre o detalle", key="buscar_historial_mov")
+
             if motivos_sel:
                 df_mov = df_mov[df_mov["Motivo"].isin(motivos_sel)]
             if presencias_sel:
