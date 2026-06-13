@@ -1714,7 +1714,7 @@ with tab_res:
         st.info("No hay movimientos registrados.")
 
 with tab_res:
-    if st.button("📥 GENERAR PARTE DIARIO (EXCEL)", type="primary", use_container_width=True, key="btn_parte_diario_formal"):
+    if True:
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
     
         wb = openpyxl.Workbook()
@@ -1834,13 +1834,20 @@ with tab_res:
             ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
     
         output = f"PARTE_DIARIO_ESCUADRON_H_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
-        descargar_archivo_auto(excel_bytes(wb), output, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.success(f"✅ Parte diario descargado: **{output}**")
+        st.download_button(
+            "GENERAR PARTE DIARIO (EXCEL)",
+            data=excel_bytes(wb),
+            file_name=output,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True,
+            key="download_parte_diario_formal"
+        )
     
     # ==============================================================================
     # 5. EXPORTAR EXCEL (PARTE DIARIO DETALLADO)
     # ==============================================================================
-    if st.button("📥 GENERAR PARTE DIARIO DETALLADO (EXCEL)", type="secondary", use_container_width=True):
+    if True:
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -2001,5 +2008,12 @@ with tab_res:
             ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
 
         output = f"PARTE_DIARIO_DETALLADO_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
-        descargar_archivo_auto(excel_bytes(wb), output, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.success(f"✅ Parte diario detallado descargado: **{output}**")
+        st.download_button(
+            "GENERAR PARTE DIARIO DETALLADO (EXCEL)",
+            data=excel_bytes(wb),
+            file_name=output,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="secondary",
+            use_container_width=True,
+            key="download_parte_diario_detallado"
+        )
