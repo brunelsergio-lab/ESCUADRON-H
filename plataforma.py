@@ -537,11 +537,12 @@ st.markdown(f"""
         display: none !important;
     }}
     .rrhh-panel {{
-        background: #111827;
-        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: #F8FAFC;
+        border: 1px solid #D8E0EA;
         border-radius: 8px;
         padding: 1rem;
         margin: 0.25rem 0 1rem 0;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
     }}
     .rrhh-head {{
         display: flex;
@@ -552,7 +553,7 @@ st.markdown(f"""
     }}
     .rrhh-eyebrow {{
         margin: 0 0 0.25rem 0;
-        color: #9CA3AF;
+        color: #64748B;
         font-size: 0.76rem;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -566,21 +567,21 @@ st.markdown(f"""
     }}
     .rrhh-subtitle {{
         margin: 0.25rem 0 0 0;
-        color: #CBD5E1;
+        color: #475569;
         font-size: 0.9rem;
     }}
     .rrhh-date {{
-        border: 1px solid rgba(148, 163, 184, 0.28);
+        border: 1px solid #CBD5E1;
         border-radius: 999px;
         color: #E5E7EB;
         padding: 0.35rem 0.7rem;
         font-size: 0.82rem;
         white-space: nowrap;
-        background: rgba(15, 23, 42, 0.7);
+        background: #FFFFFF;
     }}
     .nov-monitor {{
-        border: 1px solid rgba(148, 163, 184, 0.22);
-        background: rgba(15, 23, 42, 0.72);
+        border: 1px solid #D5DEE9;
+        background: #FFFFFF;
         border-radius: 8px;
         padding: 0.75rem;
         margin: 0 0 0.85rem 0;
@@ -593,14 +594,14 @@ st.markdown(f"""
         margin-bottom: 0.55rem;
     }}
     .nov-monitor-title {{
-        color: #F9FAFB;
+        color: #0F172A;
         font-size: 0.84rem;
         font-weight: 800;
         text-transform: uppercase;
         letter-spacing: 0.06em;
     }}
     .nov-monitor-sub {{
-        color: #94A3B8;
+        color: #64748B;
         font-size: 0.76rem;
         white-space: nowrap;
     }}
@@ -610,8 +611,8 @@ st.markdown(f"""
         gap: 0.5rem;
     }}
     .nov-card {{
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        background: rgba(255, 255, 255, 0.045);
+        border: 1px solid #E2E8F0;
+        background: #F8FAFC;
         border-radius: 8px;
         padding: 0.65rem 0.75rem;
         min-height: 74px;
@@ -623,25 +624,25 @@ st.markdown(f"""
         gap: 0.75rem;
     }}
     .nov-card span {{
-        color: #CBD5E1;
+        color: #475569;
         font-size: 0.74rem;
         font-weight: 700;
         line-height: 1.15;
         text-transform: uppercase;
     }}
     .nov-card strong {{
-        color: #FFFFFF;
+        color: #0F172A;
         font-size: 1.5rem;
         line-height: 1;
     }}
     .nov-card p {{
         margin: 0.45rem 0 0 0;
-        color: #94A3B8;
+        color: #64748B;
         font-size: 0.78rem;
         line-height: 1.25;
     }}
     .nov-card b {{
-        color: #E5E7EB;
+        color: #1E293B;
     }}
     .rrhh-kpi-grid {{
         display: grid;
@@ -649,29 +650,29 @@ st.markdown(f"""
         gap: 0.65rem;
     }}
     .rrhh-kpi {{
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid #E2E8F0;
+        background: #FFFFFF;
         border-radius: 8px;
         padding: 0.75rem;
         min-height: 96px;
     }}
     .rrhh-kpi span {{
         display: block;
-        color: #A7B0BE;
+        color: #64748B;
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
     }}
     .rrhh-kpi strong {{
         display: block;
-        color: #F9FAFB;
+        color: #0F172A;
         font-size: 1.7rem;
         line-height: 1.1;
         margin-top: 0.35rem;
     }}
     .rrhh-kpi small {{
         display: block;
-        color: #94A3B8;
+        color: #64748B;
         font-size: 0.78rem;
         margin-top: 0.3rem;
     }}
