@@ -34,6 +34,21 @@ def excel_bytes(wb):
     buffer.seek(0)
     return buffer.getvalue()
 
+EXCEL_FONT_NAME = "Arial"
+EXCEL_OLIVE_DARK = "4B5320"
+EXCEL_OLIVE = "556B2F"
+EXCEL_OLIVE_LIGHT = "E8EAD7"
+EXCEL_OLIVE_ROW = "F4F6ED"
+EXCEL_TEXT_DARK = "1F2937"
+EXCEL_TEXT_MUTED = "555555"
+EXCEL_BORDER = "A6A078"
+EXCEL_WHITE = "FFFFFF"
+
+
+def excel_font(**kwargs):
+    kwargs.setdefault("name", EXCEL_FONT_NAME)
+    return Font(**kwargs)
+
 def descargar_archivo_auto(data, file_name, mime):
     href = f"data:{mime};base64,{base64.b64encode(data).decode('ascii')}"
     components.html(
@@ -1240,20 +1255,20 @@ with tab_alm:
         
         ws.merge_cells('A1:F1')
         ws['A1'] = "PARTE DE RACIONAMIENTO - ESCUADRÓN H"
-        ws['A1'].font = Font(bold=True, size=15, color="FFFFFF")
-        ws['A1'].fill = PatternFill(start_color="E65100", end_color="E65100", fill_type="solid")
+        ws['A1'].font = excel_font(bold=True, size=15, color=EXCEL_WHITE)
+        ws['A1'].fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
         ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
         ws['A2'] = f"Fecha: {st.session_state.fecha_reporte.strftime('%d/%m/%Y')} | Total: {len(st.session_state.lista_almuerzo)}"
-        ws['A2'].font = Font(italic=True, size=10, color="555555")
+        ws['A2'].font = excel_font(italic=True, size=10, color=EXCEL_TEXT_MUTED)
         ws.row_dimensions[1].height = 25
         
         headers = ["Nro", "NOMBRE COMPLETO", "GRADO", "CE", "DNI", "AULA"]
         for col, h in enumerate(headers, 1):
             cell = ws.cell(row=4, column=col, value=h)
-            cell.font = Font(bold=True, color="FFFFFF", size=9)
-            cell.fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
+            cell.fill = PatternFill(start_color=EXCEL_OLIVE, end_color=EXCEL_OLIVE, fill_type="solid")
             cell.alignment = Alignment(horizontal="center")
-            cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+            cell.border = Border(left=Side(style="thin", color=EXCEL_BORDER), right=Side(style="thin", color=EXCEL_BORDER), top=Side(style="thin", color=EXCEL_BORDER), bottom=Side(style="thin", color=EXCEL_BORDER))
             
         row = 5
         for nro, orden in enumerate(sorted(st.session_state.lista_almuerzo), 1):
@@ -1265,7 +1280,7 @@ with tab_alm:
             ws.cell(row=row, column=5, value=p['DNI'])
             ws.cell(row=row, column=6, value=p['AULA'])
             for c in range(1, 7):
-                ws.cell(row=row, column=c).border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+                ws.cell(row=row, column=c).border = Border(left=Side(style="thin", color=EXCEL_BORDER), right=Side(style="thin", color=EXCEL_BORDER), top=Side(style="thin", color=EXCEL_BORDER), bottom=Side(style="thin", color=EXCEL_BORDER))
                 ws.cell(row=row, column=c).alignment = Alignment(horizontal="center" if c in [1,3,6] else "left")
             row += 1
             
@@ -1356,17 +1371,17 @@ with tab_plan:
             
             ws.merge_cells('A1:H1')
             ws['A1'] = "PLAN DE LLAMADA - ESCUADRÓN H"
-            ws['A1'].font = Font(bold=True, size=16, color="FFFFFF")
-            ws['A1'].fill = PatternFill(start_color="C62828", end_color="C62828", fill_type="solid")
+            ws['A1'].font = excel_font(bold=True, size=16, color=EXCEL_WHITE)
+            ws['A1'].fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
             ws['A1'].alignment = Alignment(horizontal="center")
             
             headers = ["Nro", "NOMBRE", "AULA", "DOMICILIO", "TEL. PERSONAL", "TEL. EMERGENCIA", "CONTACTO EMERG.", "OBSERV."]
             for col, h in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col, value=h)
-                cell.font = Font(bold=True, color="FFFFFF", size=9)
-                cell.fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+                cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
+                cell.fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
                 cell.alignment = Alignment(horizontal="center")
-                cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+                cell.border = Border(left=Side(style="thin", color=EXCEL_BORDER), right=Side(style="thin", color=EXCEL_BORDER), top=Side(style="thin", color=EXCEL_BORDER), bottom=Side(style="thin", color=EXCEL_BORDER))
             
             row = 4
             for nro, cont in enumerate(sorted(todos, key=lambda x: x['orden']), 1):
@@ -1384,7 +1399,7 @@ with tab_plan:
                 ws.cell(row=row, column=8, value=cont.get('observaciones',''))
                 
                 for c in range(1, 9):
-                    ws.cell(row=row, column=c).border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
+                    ws.cell(row=row, column=c).border = Border(left=Side(style="thin", color=EXCEL_BORDER), right=Side(style="thin", color=EXCEL_BORDER), top=Side(style="thin", color=EXCEL_BORDER), bottom=Side(style="thin", color=EXCEL_BORDER))
                     ws.cell(row=row, column=c).alignment = Alignment(horizontal="center" if c in [1,3] else "left")
                 row += 1
             
@@ -1638,35 +1653,35 @@ with tab_res:
         ws_hist.title = "HISTORIAL"
         from openpyxl.styles import Alignment, PatternFill, Border, Side
 
-        titulo_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-        subtitulo_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
-        header_fill = PatternFill(start_color="2F75B5", end_color="2F75B5", fill_type="solid")
-        thin = Side(style="thin", color="B7B7B7")
+        titulo_fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
+        subtitulo_fill = PatternFill(start_color=EXCEL_OLIVE_LIGHT, end_color=EXCEL_OLIVE_LIGHT, fill_type="solid")
+        header_fill = PatternFill(start_color=EXCEL_OLIVE, end_color=EXCEL_OLIVE, fill_type="solid")
+        thin = Side(style="thin", color=EXCEL_BORDER)
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
         ws_hist.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(columnas))
         ws_hist.cell(1, 1, "ESCUADRON H \"Cabo Marcelo Godoy\"")
-        ws_hist.cell(1, 1).font = Font(bold=True, size=16, color="FFFFFF")
+        ws_hist.cell(1, 1).font = excel_font(bold=True, size=16, color=EXCEL_WHITE)
         ws_hist.cell(1, 1).alignment = Alignment(horizontal="center", vertical="center")
         ws_hist.cell(1, 1).fill = titulo_fill
         ws_hist.row_dimensions[1].height = 28
 
         ws_hist.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(columnas))
         ws_hist.cell(2, 1, "Historial De Movimientos de Aspirantes")
-        ws_hist.cell(2, 1).font = Font(bold=True, size=13, color="1F4E78")
+        ws_hist.cell(2, 1).font = excel_font(bold=True, size=13, color=EXCEL_OLIVE_DARK)
         ws_hist.cell(2, 1).alignment = Alignment(horizontal="center", vertical="center")
         ws_hist.cell(2, 1).fill = subtitulo_fill
         ws_hist.row_dimensions[2].height = 24
 
         ws_hist.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(columnas))
         ws_hist.cell(3, 1, f"Periodo: {fecha_desde_hist.strftime('%d/%m/%Y')} al {fecha_hasta_hist.strftime('%d/%m/%Y')} | Registros: {len(historial_df)}")
-        ws_hist.cell(3, 1).font = Font(italic=True, size=10, color="404040")
+        ws_hist.cell(3, 1).font = excel_font(italic=True, size=10, color=EXCEL_TEXT_MUTED)
         ws_hist.cell(3, 1).alignment = Alignment(horizontal="center", vertical="center")
 
         header_row = 5
         for col_idx, col_name in enumerate(columnas, 1):
             cell = ws_hist.cell(header_row, col_idx, col_name)
-            cell.font = Font(bold=True, color="FFFFFF")
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE)
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             cell.border = border
@@ -1677,7 +1692,7 @@ with tab_res:
                 cell.alignment = Alignment(vertical="center", wrap_text=True)
                 cell.border = border
                 if row_idx % 2 == 0:
-                    cell.fill = PatternFill(start_color="F7FBFF", end_color="F7FBFF", fill_type="solid")
+                    cell.fill = PatternFill(start_color=EXCEL_OLIVE_ROW, end_color=EXCEL_OLIVE_ROW, fill_type="solid")
 
         widths = {
             "Fecha/hora": 20, "Apellido": 18, "Nombre": 28, "DNI": 14, "CE": 12,
@@ -1706,23 +1721,23 @@ with tab_res:
         ws = wb.active
         ws.title = "PARTE DIARIO"
     
-        thin = Side(style="thin", color="999999")
+        thin = Side(style="thin", color=EXCEL_BORDER)
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
-        header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-        sub_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
+        header_fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
+        sub_fill = PatternFill(start_color=EXCEL_OLIVE_LIGHT, end_color=EXCEL_OLIVE_LIGHT, fill_type="solid")
         fecha_titulo = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
         dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
     
         ws.merge_cells('A1:J1')
         ws['A1'] = f"PARTE DIARIO DEL ESCUADRÓN H - {fecha_titulo}"
-        ws['A1'].font = Font(bold=True, size=16, color="FFFFFF")
+        ws['A1'].font = excel_font(bold=True, size=16, color=EXCEL_WHITE)
         ws['A1'].fill = header_fill
         ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[1].height = 26
     
         ws.merge_cells('A2:J2')
         ws['A2'] = f"Día: {dia_reporte} | Primera obligación: 06:00 hs | Generado: {datetime.now().strftime('%H:%M')}"
-        ws['A2'].font = Font(italic=True, size=11, color="555555")
+        ws['A2'].font = excel_font(italic=True, size=11, color=EXCEL_TEXT_MUTED)
         ws['A2'].alignment = Alignment(horizontal="center")
     
         metric_headers = [
@@ -1739,23 +1754,23 @@ with tab_res:
         ]
         for col, label in enumerate(metric_headers, 1):
             cell = ws.cell(row=4, column=col, value=label)
-            cell.font = Font(bold=True, size=9, color="1F2937")
+            cell.font = excel_font(bold=True, size=9, color=EXCEL_TEXT_DARK)
             cell.fill = sub_fill
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             cell.border = border
             val = ws.cell(row=5, column=col, value=metric_values[col - 1])
-            val.font = Font(bold=True, size=12)
+            val.font = excel_font(bold=True, size=12)
             val.alignment = Alignment(horizontal="center")
             val.border = border
     
         ws.merge_cells('A8:J8')
         ws['A8'] = "NOVEDADES DEL PERSONAL (AUSENTES JUSTIFICADOS)"
-        ws['A8'].font = Font(bold=True, size=12, color="1F4E78")
+        ws['A8'].font = excel_font(bold=True, size=12, color=EXCEL_OLIVE_DARK)
     
         nov_headers = ["Nro", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "DETALLE", "DESDE", "HASTA", "AULA"]
         for col, h in enumerate(nov_headers, 1):
             cell = ws.cell(row=9, column=col, value=h)
-            cell.font = Font(bold=True, color="FFFFFF", size=9)
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center")
             cell.border = border
@@ -1775,13 +1790,13 @@ with tab_res:
             current_row += len(st.session_state.novedades_lista)
         else:
             ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
-            ws.cell(row=current_row, column=1, value="Sin novedades registradas en la guardia").font = Font(italic=True, color="888888")
+            ws.cell(row=current_row, column=1, value="Sin novedades registradas en la guardia").font = excel_font(italic=True, color=EXCEL_TEXT_MUTED)
             ws.cell(row=current_row, column=1).alignment = Alignment(horizontal="center")
             current_row += 1
     
         current_row += 2
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
-        ws.cell(row=current_row, column=1, value=f"HORARIOS DE INGRESO - {dia_reporte.upper()}").font = Font(bold=True, size=12, color="1F4E78")
+        ws.cell(row=current_row, column=1, value=f"HORARIOS DE INGRESO - {dia_reporte.upper()}").font = excel_font(bold=True, size=12, color=EXCEL_OLIVE_DARK)
         current_row += 1
     
         aulas_0600 = []
@@ -1813,7 +1828,7 @@ with tab_res:
     
         current_row += 2
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
-        ws.cell(row=current_row, column=1, value="OBSERVACIONES").font = Font(bold=True, size=12, color="1F4E78")
+        ws.cell(row=current_row, column=1, value="OBSERVACIONES").font = excel_font(bold=True, size=12, color=EXCEL_OLIVE_DARK)
     
         for col, width in enumerate([10, 14, 34, 12, 10, 18, 24, 12, 12, 12], 1):
             ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
@@ -1831,23 +1846,23 @@ with tab_res:
         ws = wb.active
         ws.title = "PARTE DIARIO DETALLADO"
 
-        thin = Side(style="thin", color="999999")
+        thin = Side(style="thin", color=EXCEL_BORDER)
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
-        header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-        sub_fill = PatternFill(start_color="D9EAF7", end_color="D9EAF7", fill_type="solid")
+        header_fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
+        sub_fill = PatternFill(start_color=EXCEL_OLIVE_LIGHT, end_color=EXCEL_OLIVE_LIGHT, fill_type="solid")
         fecha_titulo = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
         dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
 
         ws.merge_cells('A1:J1')
         ws['A1'] = f"PARTE DIARIO DETALLADO DEL ESCUADRÓN H - {fecha_titulo}"
-        ws['A1'].font = Font(bold=True, size=16, color="FFFFFF")
+        ws['A1'].font = excel_font(bold=True, size=16, color=EXCEL_WHITE)
         ws['A1'].fill = header_fill
         ws['A1'].alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[1].height = 26
 
         ws.merge_cells('A2:J2')
         ws['A2'] = f"Día: {dia_reporte} | Primera obligación: 06:00 hs | Generado: {datetime.now().strftime('%H:%M')}"
-        ws['A2'].font = Font(italic=True, size=11, color="555555")
+        ws['A2'].font = excel_font(italic=True, size=11, color=EXCEL_TEXT_MUTED)
         ws['A2'].alignment = Alignment(horizontal="center")
 
         metric_headers = [
@@ -1864,23 +1879,23 @@ with tab_res:
         ]
         for col, label in enumerate(metric_headers, 1):
             cell = ws.cell(row=4, column=col, value=label)
-            cell.font = Font(bold=True, size=9, color="1F2937")
+            cell.font = excel_font(bold=True, size=9, color=EXCEL_TEXT_DARK)
             cell.fill = sub_fill
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             cell.border = border
             val = ws.cell(row=5, column=col, value=metric_values[col - 1])
-            val.font = Font(bold=True, size=12)
+            val.font = excel_font(bold=True, size=12)
             val.alignment = Alignment(horizontal="center")
             val.border = border
 
         ws.merge_cells('A8:J8')
         ws['A8'] = "NOVEDADES DEL PERSONAL"
-        ws['A8'].font = Font(bold=True, size=12, color="1F4E78")
+        ws['A8'].font = excel_font(bold=True, size=12, color=EXCEL_OLIVE_DARK)
 
         nov_headers = ["Nro", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "PRESENCIA", "DETALLE", "DESDE/HASTA", "AULA"]
         for col, h in enumerate(nov_headers, 1):
             cell = ws.cell(row=9, column=col, value=h)
-            cell.font = Font(bold=True, color="FFFFFF", size=9)
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center")
             cell.border = border
@@ -1901,18 +1916,18 @@ with tab_res:
             current_row += len(st.session_state.novedades_lista)
         else:
             ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
-            ws.cell(row=current_row, column=1, value="Sin novedades registradas en la guardia").font = Font(italic=True, color="888888")
+            ws.cell(row=current_row, column=1, value="Sin novedades registradas en la guardia").font = excel_font(italic=True, color=EXCEL_TEXT_MUTED)
             ws.cell(row=current_row, column=1).alignment = Alignment(horizontal="center")
             current_row += 1
 
         current_row += 2
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
-        ws.cell(row=current_row, column=1, value="PERSONAL QUE ALMUERZA").font = Font(bold=True, size=12, color="1F4E78")
+        ws.cell(row=current_row, column=1, value="PERSONAL QUE ALMUERZA").font = excel_font(bold=True, size=12, color=EXCEL_OLIVE_DARK)
         current_row += 1
         alm_headers = ["Nro", "APELLIDO Y NOMBRE", "AULA", "CE", "DNI"]
         for col, h in enumerate(alm_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=h)
-            cell.font = Font(bold=True, color="FFFFFF", size=9)
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center")
             cell.border = border
@@ -1930,17 +1945,17 @@ with tab_res:
                     current_row += 1
         else:
             ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=5)
-            ws.cell(row=current_row, column=1, value="Sin personal cargado para almuerzo").font = Font(italic=True, color="888888")
+            ws.cell(row=current_row, column=1, value="Sin personal cargado para almuerzo").font = excel_font(italic=True, color=EXCEL_TEXT_MUTED)
             current_row += 1
 
         current_row += 2
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
-        ws.cell(row=current_row, column=1, value=f"HORARIOS DE INGRESO - {dia_reporte.upper()}").font = Font(bold=True, size=12, color="1F4E78")
+        ws.cell(row=current_row, column=1, value=f"HORARIOS DE INGRESO - {dia_reporte.upper()}").font = excel_font(bold=True, size=12, color=EXCEL_OLIVE_DARK)
         current_row += 1
         hor_headers = ["AULA", "ENT. MAÑANA", "SAL. MAÑANA", "ENT. TARDE", "SAL. TARDE"]
         for col, h in enumerate(hor_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=h)
-            cell.font = Font(bold=True, color="FFFFFF", size=9)
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center")
             cell.border = border
@@ -1956,12 +1971,12 @@ with tab_res:
 
         current_row += 2
         ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
-        ws.cell(row=current_row, column=1, value="CONTROL DE AULAS").font = Font(bold=True, size=12, color="1F4E78")
+        ws.cell(row=current_row, column=1, value="CONTROL DE AULAS").font = excel_font(bold=True, size=12, color=EXCEL_OLIVE_DARK)
         current_row += 1
         aula_headers = ["AULA", "TOTAL", "PRESENTES", "AUSENTES", "ALMUERZAN", "UBICACIÓN", "ESTADO M", "ESTADO T"]
         for col, h in enumerate(aula_headers, 1):
             cell = ws.cell(row=current_row, column=col, value=h)
-            cell.font = Font(bold=True, color="FFFFFF", size=9)
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center")
             cell.border = border
