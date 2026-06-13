@@ -1232,7 +1232,7 @@ with tab_alm:
         st.info("ℹ️ Aún no hay personal marcado para almorzar.")
 
     st.divider()
-    if st.button("📥 GENERAR PARTE DE RACIONAMIENTO", type="primary", use_container_width=True):
+    if st.session_state.lista_almuerzo:
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -1272,8 +1272,15 @@ with tab_alm:
         for col, w in zip("ABCDEF", [10, 35, 12, 12, 15, 12]): 
             ws.column_dimensions[col].width = w
         output = f"RACIONAMIENTO_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
-        descargar_archivo_auto(excel_bytes(wb), output, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        st.success(f"✅ Parte de racionamiento descargado: **{output}**")
+        st.download_button(
+            "GENERAR PARTE DE RACIONAMIENTO",
+            data=excel_bytes(wb),
+            file_name=output,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+            use_container_width=True,
+            key="download_parte_racionamiento"
+        )
 
 # ==================== PLAN DE LLAMADA (CONTACTOS) ====================
 # --- TAB: PLAN DE LLAMADA ---
