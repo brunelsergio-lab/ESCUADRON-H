@@ -698,6 +698,9 @@ st.markdown(f"""
         line-height: 1.15;
         font-weight: 900;
     }}
+    .rrhh-title-short {{
+        display: none;
+    }}
     .rrhh-subtitle {{
         margin: 0.28rem 0 0 0;
         color: #E8EAD7;
@@ -867,8 +870,10 @@ st.markdown(f"""
         .rrhh-brand {{ gap: 0.45rem; min-width: 0; }}
         .rrhh-emblem {{ width: 32px; height: 32px; border-radius: 7px; font-size: 0.78rem; flex: 0 0 auto; }}
         .rrhh-eyebrow {{ display: none; }}
-        .rrhh-title {{ font-size: 0.98rem; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
-        .rrhh-subtitle {{ display: none; }}
+        .rrhh-title {{ font-size: 0.98rem; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 8.8rem; }}
+        .rrhh-title-full {{ display: none; }}
+        .rrhh-title-short {{ display: inline; }}
+        .rrhh-subtitle {{ display: block; margin-top: 0.12rem; font-size: 0.66rem; line-height: 1.05; max-width: 9.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
         .rrhh-status-box {{ align-items: flex-end; margin-top: 0; gap: 0.25rem; }}
         .rrhh-live {{ display: none; }}
         .rrhh-date {{ padding: 0.24rem 0.48rem; font-size: 0.7rem; }}
@@ -892,7 +897,7 @@ st.markdown(f"""
             <div class="rrhh-emblem">EH</div>
             <div>
                 <p class="rrhh-eyebrow">Sistema compartido de control de personal</p>
-                <h1 class="rrhh-title">Escuadron H "Cabo Marcelo Godoy"</h1>
+                <h1 class="rrhh-title"><span class="rrhh-title-full">Escuadron H "Cabo Marcelo Godoy"</span><span class="rrhh-title-short">Escuadron H</span></h1>
                 <p class="rrhh-subtitle">Parte diario, novedades, presentismo, ubicacion y reportes en tiempo real.</p>
             </div>
         </div>
@@ -973,7 +978,6 @@ with tab_config:
 
 # --- TAB: NOVEDADES ---
 with tab_nov:
-    mostrar_monitor_novedades()
     st.divider()
     edit_idx = st.session_state.editando_idx
     es_edicion = edit_idx is not None
@@ -1174,47 +1178,7 @@ with tab_nov:
         if not es_edicion:
             st.info("🔍 Busca un aspirante para registrar novedad o asistencia.")
 
-    # 📋 LISTA DE NOVEDADES REGISTRADAS
-    if st.session_state.novedades_lista:
-        st.subheader("📋 Novedades Registradas en la Guardia")
-        st.markdown("---")
-        for idx, nov in enumerate(st.session_state.novedades_lista):
-            col_datos, col_edit, col_borrar = st.columns([6, 1, 1])
-            with col_datos:
-                badge_color = "red" if nov['estado'] in ['ART','DAF','LES'] else "orange"
-                st.markdown(f"**{nov['nombre']}** <span style='color:{badge_color};font-weight:bold'>[{nov['estado']}]</span>  |  DNI: {nov['dni']}  |  CE: {nov['ce']}", unsafe_allow_html=True)
-                ambito_lbl = AMBITOS_NOVEDAD.get(ambito_efectivo(nov), "Sin definir")
-                st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {ambito_lbl} | 📝 {nov['detalle']}")
-            with col_edit:
-                if st.button("✏️", key=f"edit_{idx}", use_container_width=True, help="Editar"):
-                    limpiar_form_novedad()
-                    st.session_state.editando_idx = idx
-                    st.rerun()
-            with col_borrar:
-                if st.button("🗑️", key=f"del_{idx}", use_container_width=True, help="Eliminar"):
-                    log_movimiento("Novedades", "ELIMINAR NOVEDAD", nov.get("orden"), nov.get("nombre"), nov.get("aula"), f"{nov.get('estado')} | {nov.get('fecha_ini')} a {nov.get('fecha_fin')} | {nov.get('detalle')}")
-                    # 1. Eliminar de la base de datos
-                    eliminar_novedad(nov['id'])
-                    
-                    # 2. Sincronizar asistencia a PRESENTE
-                    st.session_state.estado_asistencia[nov['orden']] = "PRESENTE"
-                    actualizar_asistencia(FECHA_STR, nov['orden'], "PRESENTE")
-                    
-                    # 3. Actualizar la lista y refrescar
-                    st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
-                    st.toast("Novedad eliminada y asistencia actualizada")
-                    st.rerun()
-            st.markdown("<hr style='margin: 5px 0px; border-color: #333;'>", unsafe_allow_html=True)
-        
-        if st.button("🗑️ Vaciar Todas las Novedades", type="secondary", key="btn_clear_all_nov"):
-            log_movimiento("Novedades", "VACIAR NOVEDADES", detalle=f"Se eliminaron {len(st.session_state.novedades_lista)} novedades activas")
-            vaciar_novedades()
-            for n in st.session_state.novedades_lista:
-                st.session_state.estado_asistencia[n['orden']] = "PRESENTE"
-                actualizar_asistencia(FECHA_STR, n['orden'], "PRESENTE")
-            st.session_state.novedades_lista = []
-            st.toast("Todo limpio: Novedades y asistencia reiniciadas")
-            st.rerun()
+    st.caption("Las novedades activas y su detalle se consultan desde la pestana Reportes.")
 
 # --- TAB: SEGUIMIENTO ---
 with tab_seg:
@@ -1508,6 +1472,8 @@ with tab_plan:
 # --- TAB: RESUMEN ---
 with tab_res:
     st.subheader("Resumen General y Novedades")
+    mostrar_monitor_novedades()
+    st.divider()
 
     # Recarga de datos
     st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
@@ -1581,68 +1547,67 @@ with tab_res:
 
     st.divider()
 
-# =====================================================
-# TABLA PERSONAL AUSENTE O FUERA DE INSTALACIONES
-# =====================================================
+    # =====================================================
+    # TABLA PERSONAL AUSENTE O FUERA DE INSTALACIONES
+    # =====================================================
 
-data_ausentes = []
+    data_ausentes = []
 
-for nov in st.session_state.novedades_lista:
+    for nov in st.session_state.novedades_lista:
 
-    alumno_df = df[df['ORDEN_LIMP'] == nov['orden']]
+        alumno_df = df[df['ORDEN_LIMP'] == nov['orden']]
 
-    if not alumno_df.empty:
+        if not alumno_df.empty:
 
-        alumno = alumno_df.iloc[0]
+            alumno = alumno_df.iloc[0]
 
-        data_ausentes.append({
-            "Nombre": alumno["NOMBRE_COMPLETO"],
-            "Motivo": nov["estado"],
-            "Desde": nov["fecha_ini"],
-            "Hasta": nov["fecha_fin"],
-        })
+            data_ausentes.append({
+                "Nombre": alumno["NOMBRE_COMPLETO"],
+                "Motivo": nov["estado"],
+                "Desde": nov["fecha_ini"],
+                "Hasta": nov["fecha_fin"],
+            })
 
-# AUSENTES MANUALES
-for orden, estado in st.session_state.estado_asistencia.items():
+    # AUSENTES MANUALES
+    for orden, estado in st.session_state.estado_asistencia.items():
 
-    if estado == "AUSENTE":
+        if estado == "AUSENTE":
 
-        # Evitar duplicados si ya tiene novedad cargada
-        ya_existe = any(
-            nov["orden"] == orden
-            for nov in st.session_state.novedades_lista
+            # Evitar duplicados si ya tiene novedad cargada
+            ya_existe = any(
+                nov["orden"] == orden
+                for nov in st.session_state.novedades_lista
+            )
+
+            if not ya_existe:
+
+                alumno_df = df[df['ORDEN_LIMP'] == orden]
+
+                if not alumno_df.empty:
+
+                    alumno = alumno_df.iloc[0]
+
+                    data_ausentes.append({
+                        "Nombre": alumno["NOMBRE_COMPLETO"],
+                        "Motivo": "AUSENTE",
+                        "Desde": FECHA_STR,
+                        "Hasta": FECHA_STR
+                    })
+
+    df_ausentes = pd.DataFrame(data_ausentes)
+
+    if not df_ausentes.empty:
+        df_ausentes = df_ausentes.sort_values(["Motivo", "Nombre"]).reset_index(drop=True)
+        df_ausentes.insert(0, "Nro", range(1, len(df_ausentes) + 1))
+        st.dataframe(
+            df_ausentes,
+            use_container_width=True,
+            hide_index=True
         )
-
-        if not ya_existe:
-
-            alumno_df = df[df['ORDEN_LIMP'] == orden]
-
-            if not alumno_df.empty:
-
-                alumno = alumno_df.iloc[0]
-
-                data_ausentes.append({
-                    "Nombre": alumno["NOMBRE_COMPLETO"],
-                    "Motivo": "AUSENTE",
-                    "Desde": FECHA_STR,
-                    "Hasta": FECHA_STR
-                })
-
-df_ausentes = pd.DataFrame(data_ausentes)
-
-if not df_ausentes.empty:
-    df_ausentes = df_ausentes.sort_values(["Motivo", "Nombre"]).reset_index(drop=True)
-    df_ausentes.insert(0, "Nro", range(1, len(df_ausentes) + 1))
-    st.dataframe(
-        df_ausentes,
-        use_container_width=True,
-        hide_index=True
-    )
-else:
-    st.success("Sin personal ausente.")
+    else:
+        st.success("Sin personal ausente.")
 
 with tab_res:
-    mostrar_monitor_novedades()
     st.divider()
     st.subheader("Minuta informativa")
     minuta_texto = generar_minuta_informativa()
