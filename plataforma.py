@@ -501,6 +501,15 @@ kpi_html = "".join(
     for label, value, caption, status in kpis
 )
 
+motivos_monitor = pd.Series([n["estado"] for n in st.session_state.novedades_lista]).value_counts().sort_index()
+if motivos_monitor.empty:
+    monitor_items_html = '<div class="nov-chip nov-chip-empty"><span>Sin novedades</span><strong>0</strong></div>'
+else:
+    monitor_items_html = "".join(
+        f'<div class="nov-chip"><span>{motivo}</span><strong>{int(cantidad)}</strong></div>'
+        for motivo, cantidad in motivos_monitor.items()
+    )
+
 st.markdown(f"""
 <style>
     .header-title {{
@@ -547,6 +556,63 @@ st.markdown(f"""
         font-size: 0.82rem;
         white-space: nowrap;
         background: rgba(15, 23, 42, 0.7);
+    }}
+    .nov-monitor {{
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        background: rgba(15, 23, 42, 0.72);
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin: 0 0 0.85rem 0;
+    }}
+    .nov-monitor-head {{
+        display: flex;
+        justify-content: space-between;
+        gap: 0.75rem;
+        align-items: center;
+        margin-bottom: 0.55rem;
+    }}
+    .nov-monitor-title {{
+        color: #F9FAFB;
+        font-size: 0.84rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }}
+    .nov-monitor-sub {{
+        color: #94A3B8;
+        font-size: 0.76rem;
+        white-space: nowrap;
+    }}
+    .nov-monitor-grid {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+        gap: 0.5rem;
+    }}
+    .nov-chip {{
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        background: rgba(255, 255, 255, 0.045);
+        border-radius: 8px;
+        padding: 0.55rem 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 48px;
+        gap: 0.7rem;
+    }}
+    .nov-chip span {{
+        color: #CBD5E1;
+        font-size: 0.74rem;
+        font-weight: 700;
+        line-height: 1.15;
+        text-transform: uppercase;
+    }}
+    .nov-chip strong {{
+        color: #FFFFFF;
+        font-size: 1.25rem;
+        line-height: 1;
+    }}
+    .nov-chip-empty {{
+        opacity: 0.72;
     }}
     .rrhh-kpi-grid {{
         display: grid;
@@ -600,6 +666,30 @@ st.markdown(f"""
             display: inline-block;
             margin-top: 0.7rem;
         }}
+        .nov-monitor {{
+            padding: 0.65rem;
+            position: sticky;
+            top: 0.25rem;
+            z-index: 10;
+        }}
+        .nov-monitor-head {{
+            display: block;
+            margin-bottom: 0.45rem;
+        }}
+        .nov-monitor-sub {{
+            display: block;
+            margin-top: 0.2rem;
+        }}
+        .nov-monitor-grid {{
+            display: flex;
+            overflow-x: auto;
+            gap: 0.45rem;
+            padding-bottom: 0.1rem;
+        }}
+        .nov-chip {{
+            min-width: 128px;
+            flex: 0 0 auto;
+        }}
         .rrhh-kpi-grid {{
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 0.5rem;
@@ -621,6 +711,13 @@ st.markdown(f"""
             <p class="rrhh-subtitle">Situacion diaria, presentismo, ubicacion y novedades activas.</p>
         </div>
         <div class="rrhh-date">Parte: {st.session_state.fecha_reporte.strftime('%d/%m/%Y')}</div>
+    </div>
+    <div class="nov-monitor">
+        <div class="nov-monitor-head">
+            <div class="nov-monitor-title">Monitor de novedades</div>
+            <div class="nov-monitor-sub">{len(st.session_state.novedades_lista)} activa(s)</div>
+        </div>
+        <div class="nov-monitor-grid">{monitor_items_html}</div>
     </div>
     <div class="rrhh-kpi-grid">{kpi_html}</div>
 </section>
@@ -1336,14 +1433,6 @@ for orden, estado in st.session_state.estado_asistencia.items():
                 })
 
 df_ausentes = pd.DataFrame(data_ausentes)
-
-if st.session_state.novedades_lista:
-    st.markdown("### Monitor de novedades")
-    motivos = pd.Series([n["estado"] for n in st.session_state.novedades_lista]).value_counts().sort_index()
-    cols_monitor = st.columns(min(4, max(1, len(motivos))))
-    for idx, (motivo, cantidad) in enumerate(motivos.items()):
-        with cols_monitor[idx % len(cols_monitor)]:
-            st.metric(motivo, int(cantidad))
 
 if not df_ausentes.empty:
     df_ausentes = df_ausentes.sort_values(["Motivo", "Nombre"]).reset_index(drop=True)
