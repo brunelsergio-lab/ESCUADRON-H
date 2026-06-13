@@ -5,6 +5,7 @@ import openpyxl
 from openpyxl.styles import Font
 from datetime import datetime
 import os
+from io import BytesIO
 from html import escape
 import streamlit.components.v1 as components
 
@@ -24,6 +25,12 @@ def live_search_input(label, placeholder, key):
     value = value or ""
     st.session_state[key] = value
     return value
+
+def excel_bytes(wb):
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
 
 DIAS_SEMANA = {
     0: "Lunes",
@@ -1219,8 +1226,15 @@ with tab_alm:
         for col, w in zip("ABCDEF", [10, 35, 12, 12, 15, 12]): 
             ws.column_dimensions[col].width = w
         output = f"RACIONAMIENTO_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
-        wb.save(output)
-        st.success(f"✅ Parte generado: **{output}**")
+        st.success("✅ Parte de racionamiento listo para descargar")
+        st.download_button(
+            "📥 Descargar parte de racionamiento",
+            data=excel_bytes(wb),
+            file_name=output,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key="download_racionamiento_excel"
+        )
 
 # ==================== PLAN DE LLAMADA (CONTACTOS) ====================
 # --- TAB: PLAN DE LLAMADA ---
@@ -1332,8 +1346,15 @@ with tab_plan:
                 ws.column_dimensions[col].width = w
             
             output = f"PLAN_LLAMADA_{datetime.now().strftime('%d%m%Y')}.xlsx"
-            wb.save(output)
-            st.success(f"✅ Plan de llamada exportado: **{output}**")
+            st.success("✅ Plan de llamada listo para descargar")
+            st.download_button(
+                "📥 Descargar plan de llamada",
+                data=excel_bytes(wb),
+                file_name=output,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="download_plan_llamada_excel"
+            )
     else:
         st.warning("⚠️ Aún no hay contactos registrados. Usa el buscador para cargar datos.")
   
@@ -1635,8 +1656,15 @@ if st.button("📥 GENERAR PARTE DIARIO (EXCEL)", type="primary", use_container_
         ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
 
     output = f"PARTE_DIARIO_ESCUADRON_H_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
-    wb.save(output)
-    st.success(f"✅ Parte diario generado: **{output}**")
+    st.success("✅ Parte diario listo para descargar")
+    st.download_button(
+        "📥 Descargar parte diario",
+        data=excel_bytes(wb),
+        file_name=output,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="download_parte_diario_excel"
+    )
 
 # ==============================================================================
 # 5. EXPORTAR EXCEL (PARTE DIARIO DETALLADO)
@@ -1779,5 +1807,12 @@ if st.button("📥 GENERAR PARTE DIARIO DETALLADO (EXCEL)", type="secondary", us
 
     # 💾 Guardar archivo
     output = f"PARTE_DIARIO_DETALLADO_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
-    wb.save(output)
-    st.success(f"✅ Parte diario detallado generado: **{output}**")
+    st.success("✅ Parte diario detallado listo para descargar")
+    st.download_button(
+        "📥 Descargar parte diario detallado",
+        data=excel_bytes(wb),
+        file_name=output,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+        key="download_parte_diario_detallado_excel"
+    )
