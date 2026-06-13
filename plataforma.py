@@ -1572,6 +1572,10 @@ with tab_res:
             (df_mov["Fecha parte dt"] >= fecha_desde_hist) &
             (df_mov["Fecha parte dt"] <= fecha_hasta_hist)
         ].copy()
+        df_mov["Clave aspirante"] = df_mov["Orden interno"].fillna(df_mov["Nombre completo"]).astype(str)
+        df_mov = df_mov.sort_values("Fecha/hora", ascending=False).drop_duplicates(
+            subset=["Fecha parte", "Clave aspirante"], keep="first"
+        ).copy()
 
         if not df_mov.empty:
             fc1, fc2, fc3 = st.columns(3)
@@ -1582,20 +1586,32 @@ with tab_res:
             with fc3:
                 aulas_sel = st.multiselect("Aula", sorted([a for a in df_mov["Aula"].dropna().unique() if a]), placeholder="Todas")
 
-            buscar_hist = st.text_input("Buscar nombre o detalle", key="buscar_historial_mov")
-
             if motivos_sel:
                 df_mov = df_mov[df_mov["Motivo"].isin(motivos_sel)]
             if presencias_sel:
                 df_mov = df_mov[df_mov["Presencia"].isin(presencias_sel)]
             if aulas_sel:
                 df_mov = df_mov[df_mov["Aula"].isin(aulas_sel)]
-            if buscar_hist.strip():
-                q = buscar_hist.strip().upper()
-                df_mov = df_mov[
-                    df_mov["Nombre completo"].fillna("").str.upper().str.contains(q, na=False) |
-                    df_mov["Detalle"].fillna("").str.upper().str.contains(q, na=False)
-                ]
+
+            if not df_mov.empty:
+                opciones_asp = df_mov[["Clave aspirante", "Nombre completo", "Aula"]].drop_duplicates("Clave aspirante")
+                opciones_asp = opciones_asp.sort_values("Nombre completo")
+                etiquetas_asp = {
+                    "Todos": "",
+                    **{
+                        f"{row['Nombre completo']} | Aula: {row['Aula']}": row["Clave aspirante"]
+                        for _, row in opciones_asp.iterrows()
+                    }
+                }
+                aspirante_sel = st.selectbox(
+                    "Buscar aspirante",
+                    list(etiquetas_asp.keys()),
+                    index=0,
+                    key="historial_aspirante_sel",
+                    help="Escribi y selecciona una coincidencia con un toque"
+                )
+                if aspirante_sel != "Todos":
+                    df_mov = df_mov[df_mov["Clave aspirante"] == etiquetas_asp[aspirante_sel]]
 
         if not df_mov.empty:
             st.caption(f"{len(df_mov)} movimiento(s) encontrados")
