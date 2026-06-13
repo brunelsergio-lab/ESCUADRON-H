@@ -1565,8 +1565,14 @@ with tab_res:
         detalle_cols = df_mov["Detalle"].apply(parsear_detalle_movimiento).apply(pd.Series)
         df_mov = pd.concat([df_mov, detalle_cols], axis=1)
         nombres_separados = df_mov["Nombre completo"].fillna("").astype(str).str.strip().str.split(n=1, expand=True)
-        df_mov["Apellido"] = nombres_separados[0].fillna("")
+        df_mov["Apellido"] = nombres_separados[0].fillna("").astype(str).str.strip().str.rstrip(",")
         df_mov["Nombre"] = nombres_separados[1].fillna("") if nombres_separados.shape[1] > 1 else ""
+        df_mov["Nombre"] = df_mov["Nombre"].astype(str).str.strip().str.lstrip(",").str.strip()
+        datos_personal = df[["ORDEN_LIMP", "DNI", "CE"]].copy()
+        df_mov["Orden personal"] = pd.to_numeric(df_mov["Orden interno"], errors="coerce")
+        df_mov = df_mov.merge(datos_personal, left_on="Orden personal", right_on="ORDEN_LIMP", how="left")
+        df_mov["DNI"] = df_mov["DNI"].fillna("").astype(str).str.replace(".0", "", regex=False)
+        df_mov["CE"] = df_mov["CE"].fillna("").astype(str).str.replace(".0", "", regex=False)
         df_mov["Fecha parte dt"] = pd.to_datetime(df_mov["Fecha parte"], errors="coerce").dt.date
         df_mov = df_mov[
             (df_mov["Fecha parte dt"] >= fecha_desde_hist) &
@@ -1613,15 +1619,15 @@ with tab_res:
 
         if not df_mov.empty:
             st.caption(f"{len(df_mov)} movimiento(s) encontrados")
-            columnas = ["Fecha/hora", "Apellido", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
+            columnas = ["Fecha/hora", "Apellido", "Nombre", "DNI", "CE", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.dataframe(df_mov[columnas], use_container_width=True, hide_index=True)
         else:
-            columnas = ["Fecha/hora", "Apellido", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
+            columnas = ["Fecha/hora", "Apellido", "Nombre", "DNI", "CE", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.info("No hay movimientos para los filtros seleccionados.")
 
         csv_df = df_mov[columnas] if not df_mov.empty else pd.DataFrame(columns=columnas)
         st.download_button(
-            "📥 Descargar historial (.csv)",
+            "descargar historial de movimiento",
             data=csv_df.to_csv(index=False).encode("utf-8-sig"),
             file_name=f"HISTORIAL_MOVIMIENTOS_{fecha_desde_hist.strftime('%d%m%Y')}_{fecha_hasta_hist.strftime('%d%m%Y')}.csv",
             mime="text/csv",
