@@ -395,6 +395,28 @@ if 'sel_nov' not in st.session_state:
 def log_movimiento(modulo, accion, orden=None, nombre=None, aula=None, detalle=""):
     registrar_movimiento(FECHA_STR, modulo, accion, orden, nombre, aula, detalle)
 
+def parsear_detalle_movimiento(detalle):
+    datos = {"Motivo": "", "Presencia": "", "Desde": "", "Hasta": "", "Observación": detalle or ""}
+    partes = [p.strip() for p in str(detalle or "").split("|")]
+    if not partes:
+        return datos
+
+    datos["Motivo"] = partes[0] if partes else ""
+    if len(partes) >= 2:
+        if " a " in partes[1]:
+            datos["Desde"], datos["Hasta"] = [p.strip() for p in partes[1].split(" a ", 1)]
+            if len(partes) >= 3:
+                datos["Observación"] = partes[2]
+        else:
+            datos["Presencia"] = partes[1]
+            if len(partes) >= 3 and " a " in partes[2]:
+                datos["Desde"], datos["Hasta"] = [p.strip() for p in partes[2].split(" a ", 1)]
+                if len(partes) >= 4:
+                    datos["Observación"] = partes[3]
+            elif len(partes) >= 3:
+                datos["Observación"] = partes[2]
+    return datos
+
 def limpiar_form_novedad():
     for key in ("sel_estado", "sel_ambito", "txt_detalle"):
         if key in st.session_state:
@@ -1521,8 +1543,13 @@ with tab_res:
 
     st.divider()
     st.subheader("Historial de movimientos")
-    fecha_historial = st.date_input("Fecha a consultar", st.session_state.fecha_reporte, key="fecha_historial_mov")
-    movimientos = obtener_movimientos(fecha_historial.isoformat())
+    col_fi, col_ff = st.columns(2)
+    with col_fi:
+        fecha_desde_hist = st.date_input("Desde", st.session_state.fecha_reporte, key="fecha_historial_desde")
+    with col_ff:
+        fecha_hasta_hist = st.date_input("Hasta", st.session_state.fecha_reporte, key="fecha_historial_hasta")
+
+    movimientos = obtener_movimientos()
     if movimientos:
         df_mov = pd.DataFrame(movimientos)
         df_mov = df_mov.rename(columns={
@@ -1535,17 +1562,74 @@ with tab_res:
             "aula": "Aula",
             "detalle": "Detalle",
         })
-        columnas = ["Fecha/hora", "Módulo", "Acción", "Nombre", "Aula", "Detalle"]
-        st.dataframe(df_mov[columnas], use_container_width=True, hide_index=True)
+        detalle_cols = df_mov["Detalle"].apply(parsear_detalle_movimiento).apply(pd.Series)
+        df_mov = pd.concat([df_mov, detalle_cols], axis=1)
+        df_mov["Fecha parte dt"] = pd.to_datetime(df_mov["Fecha parte"], errors="coerce").dt.date
+        df_mov = df_mov[
+            (df_mov["Fecha parte dt"] >= fecha_desde_hist) &
+            (df_mov["Fecha parte dt"] <= fecha_hasta_hist)
+        ].copy()
+
+        if not df_mov.empty:
+            fc1, fc2, fc3 = st.columns(3)
+            with fc1:
+                modulos_sel = st.multiselect("Módulo", sorted(df_mov["Módulo"].dropna().unique()))
+            with fc2:
+                acciones_sel = st.multiselect("Acción", sorted(df_mov["Acción"].dropna().unique()))
+            with fc3:
+                motivos_sel = st.multiselect("Motivo", sorted([m for m in df_mov["Motivo"].dropna().unique() if m]))
+
+            fc4, fc5, fc6 = st.columns(3)
+            with fc4:
+                presencias_sel = st.multiselect("Presencia", sorted([p for p in df_mov["Presencia"].dropna().unique() if p]))
+            with fc5:
+                aulas_sel = st.multiselect("Aula", sorted([a for a in df_mov["Aula"].dropna().unique() if a]))
+            with fc6:
+                buscar_hist = st.text_input("Buscar nombre o detalle", key="buscar_historial_mov")
+
+            if modulos_sel:
+                df_mov = df_mov[df_mov["Módulo"].isin(modulos_sel)]
+            if acciones_sel:
+                df_mov = df_mov[df_mov["Acción"].isin(acciones_sel)]
+            if motivos_sel:
+                df_mov = df_mov[df_mov["Motivo"].isin(motivos_sel)]
+            if presencias_sel:
+                df_mov = df_mov[df_mov["Presencia"].isin(presencias_sel)]
+            if aulas_sel:
+                df_mov = df_mov[df_mov["Aula"].isin(aulas_sel)]
+            if buscar_hist.strip():
+                q = buscar_hist.strip().upper()
+                df_mov = df_mov[
+                    df_mov["Nombre"].fillna("").str.upper().str.contains(q, na=False) |
+                    df_mov["Detalle"].fillna("").str.upper().str.contains(q, na=False)
+                ]
+
+        if not df_mov.empty:
+            st.caption(f"{len(df_mov)} movimiento(s) encontrados")
+            resumen_motivos = df_mov[df_mov["Motivo"].fillna("") != ""].groupby("Motivo").agg(
+                Cantidad=("Motivo", "size"),
+                Personal=("Nombre", lambda x: ", ".join(sorted({str(v) for v in x.dropna() if str(v).strip()})))
+            ).reset_index()
+            if not resumen_motivos.empty:
+                st.markdown("#### Resumen por motivo")
+                st.dataframe(resumen_motivos, use_container_width=True, hide_index=True)
+
+            columnas = ["Fecha/hora", "Fecha parte", "Módulo", "Acción", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
+            st.dataframe(df_mov[columnas], use_container_width=True, hide_index=True)
+        else:
+            columnas = ["Fecha/hora", "Fecha parte", "Módulo", "Acción", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
+            st.info("No hay movimientos para los filtros seleccionados.")
+
+        csv_df = df_mov[columnas] if not df_mov.empty else pd.DataFrame(columns=columnas)
         st.download_button(
             "📥 Descargar historial (.csv)",
-            data=df_mov[columnas].to_csv(index=False).encode("utf-8-sig"),
-            file_name=f"HISTORIAL_MOVIMIENTOS_{fecha_historial.strftime('%d%m%Y')}.csv",
+            data=csv_df.to_csv(index=False).encode("utf-8-sig"),
+            file_name=f"HISTORIAL_MOVIMIENTOS_{fecha_desde_hist.strftime('%d%m%Y')}_{fecha_hasta_hist.strftime('%d%m%Y')}.csv",
             mime="text/csv",
             use_container_width=True
         )
     else:
-        st.info("No hay movimientos registrados para esa fecha.")
+        st.info("No hay movimientos registrados.")
 
 with tab_res:
     if st.button("📥 GENERAR PARTE DIARIO (EXCEL)", type="primary", use_container_width=True, key="btn_parte_diario_formal"):
