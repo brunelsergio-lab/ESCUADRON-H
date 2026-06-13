@@ -369,6 +369,14 @@ if 'sel_nov' not in st.session_state:
 def log_movimiento(modulo, accion, orden=None, nombre=None, aula=None, detalle=""):
     registrar_movimiento(FECHA_STR, modulo, accion, orden, nombre, aula, detalle)
 
+def limpiar_form_novedad():
+    for key in ("sel_estado", "sel_ambito", "txt_detalle"):
+        if key in st.session_state:
+            del st.session_state[key]
+
+if st.session_state.pop("limpiar_form_novedad_pendiente", False):
+    limpiar_form_novedad()
+
 # ==============================================================================
 # 3. MÉTRICAS EN TIEMPO REAL (CON SINCRONIZACIÓN AUTOMÁTICA)
 # ==============================================================================
@@ -708,21 +716,18 @@ with tab_nov:
         
         with col_btn_aus:
             if st.button("Ausente", type="secondary", use_container_width=True, key="btn_aus_edit"):
-                st.session_state.sel_estado = "AUSENTE"
                 st.session_state.sel_ambito = "AUSENTE"
                 st.toast(f"{nombre_asp} preparado como ausente")
                 st.rerun()
 
         with col_btn_p:
             if st.button("Presente en instituto", type="secondary", use_container_width=True, key="btn_pres_inst_edit"):
-                st.session_state.sel_estado = "PRESENTE EN INSTITUTO"
                 st.session_state.sel_ambito = "INSTITUTO"
                 st.toast(f"{nombre_asp} preparado como presente en instituto")
                 st.rerun()
                 
         with col_btn_a:
             if st.button("Presente en escuadrón", type="primary", use_container_width=True, key="btn_pres_esc_edit"):
-                st.session_state.sel_estado = "PRESENTE EN ESCUADRÓN"
                 st.session_state.sel_ambito = "ESCUADRON"
                 st.toast(f"{nombre_asp} preparado como presente en escuadrón")
                 st.rerun()
@@ -745,6 +750,7 @@ with tab_nov:
                     with c1: st.markdown(f"**{r['NOMBRE_COMPLETO']}** | DNI: {r['DNI']} | CE: {r['CE']}")
                     with c2:
                         if st.button("👆 Seleccionar", key=f"sel_{i}"):
+                            limpiar_form_novedad()
                             st.session_state.sel_nov = r.to_dict()
                             st.session_state.search_nov = ""
                             st.rerun()
@@ -760,27 +766,25 @@ with tab_nov:
 
             with col_btn_aus:
                 if st.button("Ausente", type="secondary", use_container_width=True, key="btn_aus"):
-                    st.session_state.sel_estado = "AUSENTE"
                     st.session_state.sel_ambito = "AUSENTE"
                     st.toast(f"{nombre_asp} preparado como ausente")
                     st.rerun()
 
             with col_btn_p:
                 if st.button("Presente en instituto", type="secondary", use_container_width=True, key="btn_pres_inst"):
-                    st.session_state.sel_estado = "PRESENTE EN INSTITUTO"
                     st.session_state.sel_ambito = "INSTITUTO"
                     st.toast(f"{nombre_asp} preparado como presente en instituto")
                     st.rerun()
 
             with col_btn_a:
                 if st.button("Presente en escuadrón", type="primary", use_container_width=True, key="btn_pres_esc"):
-                    st.session_state.sel_estado = "PRESENTE EN ESCUADRÓN"
                     st.session_state.sel_ambito = "ESCUADRON"
                     st.toast(f"{nombre_asp} preparado como presente en escuadrón")
                     st.rerun()
 
             with col_btn_c:
                 if st.button("Cambiar", use_container_width=True, help="Cambiar aspirante", key="btn_clear_sel"):
+                    limpiar_form_novedad()
                     st.session_state.sel_nov = None
                     st.session_state.search_nov = ""
                     st.rerun()
@@ -800,20 +804,31 @@ with tab_nov:
     "SSD",
     "COMISIÓN",
     "AUTORIZADO",
-    "PRESENTE EN INSTITUTO",
-    "PRESENTE EN ESCUADRÓN",
     "ENTRANTE GUARDIA DIURNA",
     "ENTRANTE GUARDIA NOCTURNA",
     "DESCANSO DE GUARDIA"
 ]
             current_estado = data.get('estado', "ART")
+            if current_estado not in opts:
+                current_estado = "ART"
+            if st.session_state.get("sel_estado") not in opts:
+                st.session_state.sel_estado = current_estado
             idx_opts = opts.index(current_estado) if current_estado in opts else 0
             est = st.selectbox("Situación:", opts, index=idx_opts, key="sel_estado")
         with c2:
             det = st.text_input("Detalle:", value=data.get('detalle', ''), key="txt_detalle")
 
-        ambito = ambito_por_defecto(est)
-        st.caption(f"Impacto en control: {AMBITOS_NOVEDAD.get(ambito, ambito)}")
+        ambito_actual = st.session_state.get("sel_ambito") or data.get('ambito') or ambito_por_defecto(est)
+        ambito_keys = list(AMBITOS_NOVEDAD.keys())
+        ambito_idx = ambito_keys.index(ambito_actual) if ambito_actual in ambito_keys else 0
+        ambito = st.radio(
+            "Presencia real:",
+            ambito_keys,
+            index=ambito_idx,
+            format_func=lambda x: AMBITOS_NOVEDAD[x],
+            key="sel_ambito",
+            horizontal=True
+        )
 
         cf1, cf2 = st.columns(2)
         with cf1:
@@ -845,6 +860,7 @@ with tab_nov:
                     log_movimiento("Novedades", "EDITAR NOVEDAD", data.get("orden"), data.get("nombre"), data.get("aula"), f"{est} | {AMBITOS_NOVEDAD.get(ambito, ambito)} | {fi} a {ff} | {det.upper()}")
                     st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
                     st.session_state.editando_idx = None
+                    st.session_state.limpiar_form_novedad_pendiente = True
                     st.success("✅ Novedad y asistencia actualizadas")
                     st.rerun()
             else:
@@ -859,10 +875,12 @@ with tab_nov:
                     log_movimiento("Novedades", "ALTA NOVEDAD", int(data["ORDEN_LIMP"]), nombre_asp, data["AULA"], f"{est} | {AMBITOS_NOVEDAD.get(ambito, ambito)} | {fi} a {ff} | {det.upper()}")
                     st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
                     st.session_state.sel_nov = None
+                    st.session_state.limpiar_form_novedad_pendiente = True
                     st.success(f"✅ Novedad grabada para {nombre_asp}")
                     st.rerun()
         with b2:
             if st.button("🚫 Cancelar", use_container_width=True, key="btn_cancel"):
+                st.session_state.limpiar_form_novedad_pendiente = True
                 st.session_state.editando_idx = None
                 st.session_state.sel_nov = None
                 st.rerun()
@@ -883,6 +901,7 @@ with tab_nov:
                 st.caption(f"📅 {nov['fecha_ini']} → {nov['fecha_fin']} | {ambito_lbl} | 📝 {nov['detalle']}")
             with col_edit:
                 if st.button("✏️", key=f"edit_{idx}", use_container_width=True, help="Editar"):
+                    limpiar_form_novedad()
                     st.session_state.editando_idx = idx
                     st.rerun()
             with col_borrar:
