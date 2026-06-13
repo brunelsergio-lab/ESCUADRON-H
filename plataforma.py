@@ -314,6 +314,48 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+@media (max-width: 720px) {
+    .main .block-container {
+        padding-top: 0.6rem !important;
+        padding-left: 0.55rem !important;
+        padding-right: 0.55rem !important;
+        padding-bottom: 2rem !important;
+    }
+    div[data-testid="stTabs"] > div[role="tablist"] {
+        gap: 0.35rem !important;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        padding-bottom: 0.35rem !important;
+    }
+    div[data-testid="stTabs"] button[role="tab"],
+    div[data-testid="stTabs"] button[data-baseweb="tab"] {
+        min-width: max-content !important;
+        padding: 0.62rem 0.85rem !important;
+        border-radius: 999px !important;
+        border: 1px solid rgba(143, 166, 80, 0.35) !important;
+        background: rgba(75, 83, 32, 0.22) !important;
+        font-size: 0.9rem !important;
+        font-weight: 800 !important;
+    }
+    div[data-testid="stTabs"] button[aria-selected="true"],
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
+        background: #4B5320 !important;
+        color: #FFFFFF !important;
+        border-color: #8FA650 !important;
+    }
+    hr {
+        margin: 0.85rem 0 !important;
+    }
+    .stButton {
+        margin-top: 0.55rem !important;
+        margin-bottom: 0.55rem !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ==============================================================================
 # 1. CARGA DE DATOS
 # ==============================================================================
@@ -809,21 +851,39 @@ st.markdown(f"""
     .rrhh-kpi-warn {{ border-left: 3px solid #D8B55A; }}
     .rrhh-kpi-alert {{ border-left: 3px solid #C05646; }}
     @media (max-width: 720px) {{
-        .rrhh-panel {{ padding: 0.85rem; }}
-        .rrhh-head {{ display: block; }}
-        .rrhh-brand {{ align-items: flex-start; }}
-        .rrhh-emblem {{ width: 42px; height: 42px; }}
-        .rrhh-status-box {{ align-items: flex-start; margin-top: 0.7rem; }}
-        .rrhh-access {{ grid-template-columns: 1fr; gap: 0.45rem; }}
-        .rrhh-title {{ font-size: 1.15rem; }}
-        .nov-monitor {{ padding: 0.65rem; position: sticky; top: 0.25rem; z-index: 10; }}
-        .nov-monitor-head {{ display: block; margin-bottom: 0.45rem; }}
-        .nov-monitor-sub {{ display: block; margin-top: 0.2rem; }}
-        .nov-monitor-grid {{ display: flex; overflow-x: auto; gap: 0.45rem; padding-bottom: 0.1rem; }}
-        .nov-card {{ min-width: 245px; flex: 0 0 auto; }}
-        .rrhh-kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }}
-        .rrhh-kpi {{ min-height: 86px; padding: 0.65rem; }}
-        .rrhh-kpi strong {{ font-size: 1.45rem; }}
+        .rrhh-panel {{
+            padding: 0.55rem 0.6rem;
+            margin: 0 0 0.55rem 0;
+            box-shadow: none;
+            background: linear-gradient(135deg, #344018 0%, #111827 100%);
+        }}
+        .rrhh-head {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin-bottom: 0.45rem;
+        }}
+        .rrhh-brand {{ gap: 0.45rem; min-width: 0; }}
+        .rrhh-emblem {{ width: 32px; height: 32px; border-radius: 7px; font-size: 0.78rem; flex: 0 0 auto; }}
+        .rrhh-eyebrow {{ display: none; }}
+        .rrhh-title {{ font-size: 0.98rem; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+        .rrhh-subtitle {{ display: none; }}
+        .rrhh-status-box {{ align-items: flex-end; margin-top: 0; gap: 0.25rem; }}
+        .rrhh-live {{ display: none; }}
+        .rrhh-date {{ padding: 0.24rem 0.48rem; font-size: 0.7rem; }}
+        .rrhh-access {{ display: none; }}
+        .rrhh-kpi-grid {{ grid-template-columns: repeat(4, minmax(68px, 1fr)); gap: 0.35rem; }}
+        .rrhh-kpi {{ min-height: 58px; padding: 0.45rem; border-radius: 7px; }}
+        .rrhh-kpi span {{ font-size: 0.58rem; letter-spacing: 0.03em; }}
+        .rrhh-kpi strong {{ font-size: 1.08rem; margin-top: 0.15rem; }}
+        .rrhh-kpi small {{ display: none; }}
+        .nov-monitor {{ padding: 0.55rem; position: sticky; top: 0.2rem; z-index: 10; }}
+        .nov-monitor-head {{ display: block; margin-bottom: 0.4rem; }}
+        .nov-monitor-sub {{ display: block; margin-top: 0.15rem; }}
+        .nov-monitor-grid {{ display: flex; overflow-x: auto; gap: 0.4rem; padding-bottom: 0.1rem; }}
+        .nov-card {{ min-width: 210px; flex: 0 0 auto; min-height: 62px; padding: 0.52rem; }}
+        .nov-card strong {{ font-size: 1.2rem; }}
     }}
 </style>
 <section class="rrhh-panel">
