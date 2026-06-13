@@ -5,6 +5,7 @@ import openpyxl
 from openpyxl.styles import Font
 from datetime import datetime
 import os
+from html import escape
 import streamlit.components.v1 as components
 
 LIVE_SEARCH_COMPONENT = components.declare_component(
@@ -501,14 +502,34 @@ kpi_html = "".join(
     for label, value, caption, status in kpis
 )
 
-motivos_monitor = pd.Series([n["estado"] for n in st.session_state.novedades_lista]).value_counts().sort_index()
-if motivos_monitor.empty:
-    monitor_items_html = '<div class="nov-chip nov-chip-empty"><span>Sin novedades</span><strong>0</strong></div>'
-else:
-    monitor_items_html = "".join(
-        f'<div class="nov-chip"><span>{motivo}</span><strong>{int(cantidad)}</strong></div>'
-        for motivo, cantidad in motivos_monitor.items()
+def texto_obs_motivos(novedades):
+    if not novedades:
+        return "Sin novedades"
+    motivos = pd.Series([n["estado"] for n in novedades]).value_counts().sort_index()
+    partes = []
+    for motivo, cantidad in motivos.items():
+        label = str(motivo).lower()
+        partes.append(f"{int(cantidad)} {label}")
+    return ", ".join(partes)
+
+def tarjeta_monitor_novedades(titulo, novedades):
+    total = len(novedades)
+    obs = texto_obs_motivos(novedades)
+    return (
+        '<div class="nov-card">'
+        f'<div><span>{escape(titulo)}</span><strong>{total}</strong></div>'
+        f'<p><b>OBS:</b> {escape(obs)}</p>'
+        '</div>'
     )
+
+novedades_ausentes = [n for n in st.session_state.novedades_lista if ambito_efectivo(n) == "AUSENTE"]
+novedades_ausentes_tercero = [n for n in novedades_ausentes if es_tercer_anio(n.get("grado", ""))]
+novedades_ausentes_aop = [n for n in novedades_ausentes if es_aop(n.get("grado", ""))]
+
+monitor_items_html = (
+    tarjeta_monitor_novedades("Ausentes de 3er año", novedades_ausentes_tercero)
+    + tarjeta_monitor_novedades("Ausentes AOP", novedades_ausentes_aop)
+)
 
 st.markdown(f"""
 <style>
@@ -585,34 +606,42 @@ st.markdown(f"""
     }}
     .nov-monitor-grid {{
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
         gap: 0.5rem;
     }}
-    .nov-chip {{
+    .nov-card {{
         border: 1px solid rgba(148, 163, 184, 0.18);
         background: rgba(255, 255, 255, 0.045);
         border-radius: 8px;
-        padding: 0.55rem 0.65rem;
+        padding: 0.65rem 0.75rem;
+        min-height: 74px;
+    }}
+    .nov-card > div {{
         display: flex;
         align-items: center;
         justify-content: space-between;
-        min-height: 48px;
-        gap: 0.7rem;
+        gap: 0.75rem;
     }}
-    .nov-chip span {{
+    .nov-card span {{
         color: #CBD5E1;
         font-size: 0.74rem;
         font-weight: 700;
         line-height: 1.15;
         text-transform: uppercase;
     }}
-    .nov-chip strong {{
+    .nov-card strong {{
         color: #FFFFFF;
-        font-size: 1.25rem;
+        font-size: 1.5rem;
         line-height: 1;
     }}
-    .nov-chip-empty {{
-        opacity: 0.72;
+    .nov-card p {{
+        margin: 0.45rem 0 0 0;
+        color: #94A3B8;
+        font-size: 0.78rem;
+        line-height: 1.25;
+    }}
+    .nov-card b {{
+        color: #E5E7EB;
     }}
     .rrhh-kpi-grid {{
         display: grid;
@@ -686,8 +715,8 @@ st.markdown(f"""
             gap: 0.45rem;
             padding-bottom: 0.1rem;
         }}
-        .nov-chip {{
-            min-width: 128px;
+        .nov-card {{
+            min-width: 245px;
             flex: 0 0 auto;
         }}
         .rrhh-kpi-grid {{
