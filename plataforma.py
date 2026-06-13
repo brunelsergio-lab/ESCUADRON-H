@@ -1558,12 +1558,15 @@ with tab_res:
             "modulo": "Módulo",
             "accion": "Acción",
             "orden": "Orden interno",
-            "nombre": "Nombre",
+            "nombre": "Nombre completo",
             "aula": "Aula",
             "detalle": "Detalle",
         })
         detalle_cols = df_mov["Detalle"].apply(parsear_detalle_movimiento).apply(pd.Series)
         df_mov = pd.concat([df_mov, detalle_cols], axis=1)
+        nombres_separados = df_mov["Nombre completo"].fillna("").astype(str).str.strip().str.split(n=1, expand=True)
+        df_mov["Apellido"] = nombres_separados[0].fillna("")
+        df_mov["Nombre"] = nombres_separados[1].fillna("") if nombres_separados.shape[1] > 1 else ""
         df_mov["Fecha parte dt"] = pd.to_datetime(df_mov["Fecha parte"], errors="coerce").dt.date
         df_mov = df_mov[
             (df_mov["Fecha parte dt"] >= fecha_desde_hist) &
@@ -1600,16 +1603,16 @@ with tab_res:
             if buscar_hist.strip():
                 q = buscar_hist.strip().upper()
                 df_mov = df_mov[
-                    df_mov["Nombre"].fillna("").str.upper().str.contains(q, na=False) |
+                    df_mov["Nombre completo"].fillna("").str.upper().str.contains(q, na=False) |
                     df_mov["Detalle"].fillna("").str.upper().str.contains(q, na=False)
                 ]
 
         if not df_mov.empty:
             st.caption(f"{len(df_mov)} movimiento(s) encontrados")
-            columnas = ["Fecha/hora", "Fecha parte", "Módulo", "Acción", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
+            columnas = ["Fecha/hora", "Apellido", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.dataframe(df_mov[columnas], use_container_width=True, hide_index=True)
         else:
-            columnas = ["Fecha/hora", "Fecha parte", "Módulo", "Acción", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
+            columnas = ["Fecha/hora", "Apellido", "Nombre", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.info("No hay movimientos para los filtros seleccionados.")
 
         csv_df = df_mov[columnas] if not df_mov.empty else pd.DataFrame(columns=columnas)
