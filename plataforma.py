@@ -870,10 +870,10 @@ st.markdown(f"""
         .rrhh-brand {{ gap: 0.45rem; min-width: 0; }}
         .rrhh-emblem {{ width: 32px; height: 32px; border-radius: 7px; font-size: 0.78rem; flex: 0 0 auto; }}
         .rrhh-eyebrow {{ display: none; }}
-        .rrhh-title {{ font-size: 0.98rem; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 8.8rem; }}
+        .rrhh-title {{ font-size: 1rem; line-height: 1.1; white-space: nowrap; overflow: visible; max-width: none; }}
         .rrhh-title-full {{ display: none; }}
         .rrhh-title-short {{ display: inline; }}
-        .rrhh-subtitle {{ display: block; margin-top: 0.12rem; font-size: 0.66rem; line-height: 1.05; max-width: 9.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+        .rrhh-subtitle {{ display: none; }}
         .rrhh-status-box {{ align-items: flex-end; margin-top: 0; gap: 0.25rem; }}
         .rrhh-live {{ display: none; }}
         .rrhh-date {{ padding: 0.24rem 0.48rem; font-size: 0.7rem; }}
@@ -1178,7 +1178,36 @@ with tab_nov:
         if not es_edicion:
             st.info("🔍 Busca un aspirante para registrar novedad o asistencia.")
 
-    st.caption("Las novedades activas y su detalle se consultan desde la pestana Reportes.")
+    st.divider()
+    st.subheader("Novedades activas")
+    if st.session_state.novedades_lista:
+        st.caption("Panel editable para modificar motivo, presencia real, fechas o cerrar una novedad antes de su vencimiento.")
+        for idx, nov in enumerate(st.session_state.novedades_lista):
+            ambito_lbl = AMBITOS_NOVEDAD.get(ambito_efectivo(nov), "Sin definir")
+            with st.container(border=True):
+                c_info, c_edit, c_del = st.columns([6, 1, 1])
+                with c_info:
+                    st.markdown(f"**{nov['nombre']}** | **{nov['estado']}**")
+                    st.caption(f"{nov['fecha_ini']} a {nov['fecha_fin']} | {ambito_lbl} | Aula {nov.get('aula', '-')} | DNI {nov.get('dni', '-')} | CE {nov.get('ce', '-')}")
+                    if nov.get('detalle'):
+                        st.caption(f"Detalle: {nov['detalle']}")
+                with c_edit:
+                    if st.button("Editar", key=f"edit_nov_activa_{idx}", use_container_width=True):
+                        limpiar_form_novedad()
+                        st.session_state.editando_idx = idx
+                        st.session_state.sel_nov = None
+                        st.rerun()
+                with c_del:
+                    if st.button("Quitar", key=f"del_nov_activa_{idx}", use_container_width=True):
+                        log_movimiento("Novedades", "ELIMINAR NOVEDAD", nov.get("orden"), nov.get("nombre"), nov.get("aula"), f"{nov.get('estado')} | {nov.get('fecha_ini')} a {nov.get('fecha_fin')} | {nov.get('detalle')}")
+                        eliminar_novedad(nov['id'])
+                        st.session_state.estado_asistencia[nov['orden']] = "PRESENTE"
+                        actualizar_asistencia(FECHA_STR, nov['orden'], "PRESENTE")
+                        st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
+                        st.toast("Novedad eliminada y asistencia actualizada")
+                        st.rerun()
+    else:
+        st.info("No hay novedades activas para la fecha seleccionada.")
 
 # --- TAB: SEGUIMIENTO ---
 with tab_seg:
