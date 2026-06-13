@@ -1068,7 +1068,7 @@ with tab_alm:
         ws['A2'].font = Font(italic=True, size=10, color="555555")
         ws.row_dimensions[1].height = 25
         
-        headers = ["ORDEN", "NOMBRE COMPLETO", "GRADO", "CE", "DNI", "AULA"]
+        headers = ["Nro", "NOMBRE COMPLETO", "GRADO", "CE", "DNI", "AULA"]
         for col, h in enumerate(headers, 1):
             cell = ws.cell(row=4, column=col, value=h)
             cell.font = Font(bold=True, color="FFFFFF", size=9)
@@ -1077,9 +1077,9 @@ with tab_alm:
             cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
             
         row = 5
-        for orden in sorted(st.session_state.lista_almuerzo):
+        for nro, orden in enumerate(sorted(st.session_state.lista_almuerzo), 1):
             p = df[df['ORDEN_LIMP'] == orden].iloc[0]
-            ws.cell(row=row, column=1, value=p['ORDEN_LIMP'])
+            ws.cell(row=row, column=1, value=nro)
             ws.cell(row=row, column=2, value=p['NOMBRE_COMPLETO'])
             ws.cell(row=row, column=3, value=p['GRADO'])
             ws.cell(row=row, column=4, value=p['CE'])
@@ -1174,7 +1174,7 @@ with tab_plan:
             ws['A1'].fill = PatternFill(start_color="C62828", end_color="C62828", fill_type="solid")
             ws['A1'].alignment = Alignment(horizontal="center")
             
-            headers = ["ORDEN", "NOMBRE", "AULA", "DOMICILIO", "TEL. PERSONAL", "TEL. EMERGENCIA", "CONTACTO EMERG.", "OBSERV."]
+            headers = ["Nro", "NOMBRE", "AULA", "DOMICILIO", "TEL. PERSONAL", "TEL. EMERGENCIA", "CONTACTO EMERG.", "OBSERV."]
             for col, h in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col, value=h)
                 cell.font = Font(bold=True, color="FFFFFF", size=9)
@@ -1183,12 +1183,12 @@ with tab_plan:
                 cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
             
             row = 4
-            for cont in sorted(todos, key=lambda x: x['orden']):
+            for nro, cont in enumerate(sorted(todos, key=lambda x: x['orden']), 1):
                 pers = df[df['ORDEN_LIMP'] == cont['orden']]
                 nombre = pers.iloc[0]['NOMBRE_COMPLETO'] if not pers.empty else ""
                 aula = pers.iloc[0]['AULA'] if not pers.empty else ""
                 
-                ws.cell(row=row, column=1, value=cont['orden'])
+                ws.cell(row=row, column=1, value=nro)
                 ws.cell(row=row, column=2, value=nombre)
                 ws.cell(row=row, column=3, value=aula)
                 ws.cell(row=row, column=4, value=cont.get('domicilio',''))
@@ -1294,11 +1294,6 @@ with tab_res:
 
 data_ausentes = []
 
-# Generar orden correlativo según la lista activa de personal
-df = df.reset_index(drop=True)
-df = df.sort_values("ORDEN_LIMP").reset_index(drop=True)
-df["ORDEN_GENERAL"] = range(1, len(df) + 1)
-
 for nov in st.session_state.novedades_lista:
 
     alumno_df = df[df['ORDEN_LIMP'] == nov['orden']]
@@ -1308,7 +1303,6 @@ for nov in st.session_state.novedades_lista:
         alumno = alumno_df.iloc[0]
 
         data_ausentes.append({
-            "Orden": int(alumno["ORDEN_GENERAL"]),
             "Nombre": alumno["NOMBRE_COMPLETO"],
             "Motivo": nov["estado"],
             "Desde": nov["fecha_ini"],
@@ -1335,7 +1329,6 @@ for orden, estado in st.session_state.estado_asistencia.items():
                 alumno = alumno_df.iloc[0]
 
                 data_ausentes.append({
-                    "Orden": int(alumno["ORDEN_GENERAL"]),
                     "Nombre": alumno["NOMBRE_COMPLETO"],
                     "Motivo": "AUSENTE",
                     "Desde": FECHA_STR,
@@ -1344,9 +1337,19 @@ for orden, estado in st.session_state.estado_asistencia.items():
 
 df_ausentes = pd.DataFrame(data_ausentes)
 
+if st.session_state.novedades_lista:
+    st.markdown("### Monitor de novedades")
+    motivos = pd.Series([n["estado"] for n in st.session_state.novedades_lista]).value_counts().sort_index()
+    cols_monitor = st.columns(min(4, max(1, len(motivos))))
+    for idx, (motivo, cantidad) in enumerate(motivos.items()):
+        with cols_monitor[idx % len(cols_monitor)]:
+            st.metric(motivo, int(cantidad))
+
 if not df_ausentes.empty:
+    df_ausentes = df_ausentes.sort_values(["Motivo", "Nombre"]).reset_index(drop=True)
+    df_ausentes.insert(0, "Nro", range(1, len(df_ausentes) + 1))
     st.dataframe(
-        df_ausentes.sort_values("Orden"),
+        df_ausentes,
         use_container_width=True,
         hide_index=True
     )
@@ -1377,12 +1380,12 @@ with tab_res:
             "fecha_parte": "Fecha parte",
             "modulo": "Módulo",
             "accion": "Acción",
-            "orden": "Orden",
+            "orden": "Orden interno",
             "nombre": "Nombre",
             "aula": "Aula",
             "detalle": "Detalle",
         })
-        columnas = ["Fecha/hora", "Módulo", "Acción", "Orden", "Nombre", "Aula", "Detalle"]
+        columnas = ["Fecha/hora", "Módulo", "Acción", "Nombre", "Aula", "Detalle"]
         st.dataframe(df_mov[columnas], use_container_width=True, hide_index=True)
         st.download_button(
             "📥 Descargar historial (.csv)",
@@ -1447,7 +1450,7 @@ if st.button("📥 GENERAR PARTE DIARIO (EXCEL)", type="primary", use_container_
     ws['A8'] = "NOVEDADES DEL PERSONAL (AUSENTES JUSTIFICADOS)"
     ws['A8'].font = Font(bold=True, size=12, color="1F4E78")
 
-    nov_headers = ["ORDEN", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "DETALLE", "DESDE", "HASTA", "AULA"]
+    nov_headers = ["Nro", "GRADO", "APELLIDO Y NOMBRE", "DNI", "CE", "NOVEDAD", "DETALLE", "DESDE", "HASTA", "AULA"]
     for col, h in enumerate(nov_headers, 1):
         cell = ws.cell(row=9, column=col, value=h)
         cell.font = Font(bold=True, color="FFFFFF", size=9)
@@ -1457,10 +1460,10 @@ if st.button("📥 GENERAR PARTE DIARIO (EXCEL)", type="primary", use_container_
 
     current_row = 10
     if st.session_state.novedades_lista:
-        for i, nov in enumerate(st.session_state.novedades_lista):
-            row = current_row + i
+        for i, nov in enumerate(st.session_state.novedades_lista, 1):
+            row = current_row + i - 1
             values = [
-                nov['orden'], nov.get('grado', ''), nov['nombre'], nov.get('dni', ''), nov.get('ce', ''),
+                i, nov.get('grado', ''), nov['nombre'], nov.get('dni', ''), nov.get('ce', ''),
                 nov['estado'], nov['detalle'], nov['fecha_ini'], nov['fecha_fin'], nov.get('aula', '-')
             ]
             for col, value in enumerate(values, 1):
@@ -1565,7 +1568,7 @@ if st.button("📥 GENERAR PARTE DIARIO DETALLADO (EXCEL)", type="secondary", us
     ws['A10'].font = Font(bold=True, size=13, color="1F4E78")
 
     # ✅ AGREGAMOS "AULA" EN LA LISTA DE ENCABEZADOS
-    nov_headers = ["ORDEN", "NOMBRE", "AULA", "ESTADO", "DETALLE", "PERÍODO"]
+    nov_headers = ["Nro", "NOMBRE", "AULA", "ESTADO", "DETALLE", "PERÍODO"]
     for col, h in enumerate(nov_headers, 1):
         cell = ws.cell(row=11, column=col, value=h)
         cell.font = Font(bold=True, color="FFFFFF", size=10)
@@ -1574,9 +1577,9 @@ if st.button("📥 GENERAR PARTE DIARIO DETALLADO (EXCEL)", type="secondary", us
         cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
 
     if st.session_state.novedades_lista:
-        for i, nov in enumerate(st.session_state.novedades_lista):
-            row = 12 + i
-            ws.cell(row=row, column=1, value=nov['orden'])
+        for i, nov in enumerate(st.session_state.novedades_lista, 1):
+            row = 11 + i
+            ws.cell(row=row, column=1, value=i)
             ws.cell(row=row, column=2, value=nov['nombre'])
             ws.cell(row=row, column=3, value=nov.get('aula', '-')) # ✅ AQUÍ SE AGREGA EL AULA
             ws.cell(row=row, column=4, value=nov['estado'])
@@ -1597,7 +1600,7 @@ if st.button("📥 GENERAR PARTE DIARIO DETALLADO (EXCEL)", type="secondary", us
     ws['A18'] = "🍽️ PERSONAL QUE ALMUERZA"
     ws['A18'].font = Font(bold=True, size=13, color="1F4E78")
 
-    alm_headers = ["ORDEN", "NOMBRE COMPLETO", "AULA"]
+    alm_headers = ["Nro", "NOMBRE COMPLETO", "AULA"]
     for col, h in enumerate(alm_headers, 1):
         cell = ws.cell(row=19, column=col, value=h)
         cell.font = Font(bold=True, color="FFFFFF", size=10)
@@ -1606,11 +1609,11 @@ if st.button("📥 GENERAR PARTE DIARIO DETALLADO (EXCEL)", type="secondary", us
         cell.border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
 
     if st.session_state.lista_almuerzo:
-        for i, orden in enumerate(sorted(st.session_state.lista_almuerzo)):
-            row = 20 + i
+        for i, orden in enumerate(sorted(st.session_state.lista_almuerzo), 1):
+            row = 19 + i
             asp = df[df['ORDEN_LIMP'] == orden]
             if not asp.empty:
-                ws.cell(row=row, column=1, value=orden)
+                ws.cell(row=row, column=1, value=i)
                 ws.cell(row=row, column=2, value=asp.iloc[0]['NOMBRE_COMPLETO'])
                 ws.cell(row=row, column=3, value=asp.iloc[0]['AULA'])
             for c in range(1, 4):
