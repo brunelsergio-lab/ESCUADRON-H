@@ -293,6 +293,7 @@ def cargar_horarios_txt(path):
     return total
 
 # 🔹 IMPORTS CORREGIDOS (NO OMITIR NINGUNA FUNCIÓN)
+import db_manager as _db_manager
 from db_manager import (
     init_db,
     obtener_novedades, agregar_novedad, actualizar_novedad, eliminar_novedad, vaciar_novedades,
@@ -301,9 +302,31 @@ from db_manager import (
     obtener_horarios, guardar_horarios, obtener_horarios_dia, guardar_horarios_dia,
     obtener_asistencia, actualizar_asistencia,
     obtener_contacto, obtener_todos_contactos, guardar_contacto,
-    registrar_movimiento, obtener_movimientos, actualizar_movimiento, eliminar_movimiento
+    registrar_movimiento, obtener_movimientos
 )
 st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout="wide")
+
+actualizar_movimiento = getattr(_db_manager, "actualizar_movimiento", None)
+eliminar_movimiento = getattr(_db_manager, "eliminar_movimiento", None)
+
+if actualizar_movimiento is None:
+    def actualizar_movimiento(id_mov, data):
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, """UPDATE movimientos SET
+                fecha_parte=?, modulo=?, accion=?, orden=?, nombre=?, aula=?, detalle=?
+                WHERE id=?""",
+                (
+                    data.get('fecha_parte'), data.get('modulo'), data.get('accion'),
+                    data.get('orden'), data.get('nombre'), data.get('aula'),
+                    data.get('detalle', ''), id_mov
+                ))
+            conn.commit()
+
+if eliminar_movimiento is None:
+    def eliminar_movimiento(id_mov):
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, "DELETE FROM movimientos WHERE id=?", (id_mov,))
+            conn.commit()
 
 # 🔹 1. CSS PARA ESPACIADO (PEGAR AQUI AL INICIO)
 st.markdown("""
