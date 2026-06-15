@@ -1321,28 +1321,44 @@ with tab_alm:
                             st.rerun()
     
     st.divider()
-    st.subheader("📋 Lista de Almuerzo")
+    st.subheader("Lista de Almuerzo")
     if st.session_state.lista_almuerzo:
-        st.success(f"**Total que almuerzan:** {len(st.session_state.lista_almuerzo)}")
-        df_lista = df[df['ORDEN_LIMP'].isin(st.session_state.lista_almuerzo)].sort_values('ORDEN_LIMP')
-        for idx, row in df_lista.iterrows():
-            col_info, col_btn = st.columns([4, 1])
-            with col_info:
-                st.markdown(f"**{row['ORDEN_LIMP']}** - {row['NOMBRE_COMPLETO']} | {row['AULA']} | DNI: {row['DNI']}")
-            with col_btn:
-                if st.button("❌ Quitar", key=f"quit_{row['ORDEN_LIMP']}", use_container_width=True):
+        df_lista = (
+            df[df['ORDEN_LIMP'].isin(st.session_state.lista_almuerzo)]
+            .sort_values('ORDEN_LIMP')
+            .reset_index(drop=True)
+        )
+        st.caption(f"Total que almuerzan: {len(df_lista)}")
+
+        header_cols = st.columns([0.45, 0.75, 3.1, 1.05, 1.0, 1.15, 0.8, 0.9])
+        for col, label in zip(header_cols, ["Nro", "Orden", "Nombre", "Grado", "CE", "DNI", "Aula", "Accion"]):
+            col.markdown(f"<div class='lunch-table-head'>{label}</div>", unsafe_allow_html=True)
+
+        for nro, (_, row) in enumerate(df_lista.iterrows(), 1):
+            orden_alm = int(row['ORDEN_LIMP'])
+            row_cols = st.columns([0.45, 0.75, 3.1, 1.05, 1.0, 1.15, 0.8, 0.9])
+            row_cols[0].markdown(f"<div class='lunch-cell'>{nro}</div>", unsafe_allow_html=True)
+            row_cols[1].markdown(f"<div class='lunch-cell'>{orden_alm}</div>", unsafe_allow_html=True)
+            row_cols[2].markdown(f"<div class='lunch-cell lunch-name'>{row['NOMBRE_COMPLETO']}</div>", unsafe_allow_html=True)
+            row_cols[3].markdown(f"<div class='lunch-cell'>{row['GRADO']}</div>", unsafe_allow_html=True)
+            row_cols[4].markdown(f"<div class='lunch-cell'>{row['CE']}</div>", unsafe_allow_html=True)
+            row_cols[5].markdown(f"<div class='lunch-cell'>{row['DNI']}</div>", unsafe_allow_html=True)
+            row_cols[6].markdown(f"<div class='lunch-cell'>{row['AULA']}</div>", unsafe_allow_html=True)
+            with row_cols[7]:
+                if st.button("Quitar", key=f"quit_{orden_alm}", use_container_width=True):
                     st.session_state.lista_almuerzo.discard(row['ORDEN_LIMP'])
                     quitar_almuerzo(FECHA_STR, row['ORDEN_LIMP'])
-                    st.toast(f"✅ {row['NOMBRE_COMPLETO']} removido")
+                    st.toast(f"{row['NOMBRE_COMPLETO']} removido")
                     st.rerun()
-            st.markdown("<hr style='margin: 3px 0; border-color: #444;'>", unsafe_allow_html=True)
-        if st.button("🗑️ Vaciar lista completa", type="secondary", key="clear_all_lunch"):
+
+        st.markdown("<div class='lunch-table-actions'></div>", unsafe_allow_html=True)
+        if st.button("Vaciar lista completa", type="secondary", key="clear_all_lunch", use_container_width=True):
             for orden in list(st.session_state.lista_almuerzo):
                 quitar_almuerzo(FECHA_STR, orden)
             st.session_state.lista_almuerzo.clear()
             st.rerun()
     else:
-        st.info("ℹ️ Aún no hay personal marcado para almorzar.")
+        st.info("Aun no hay personal marcado para almorzar.")
 
     st.divider()
     st.subheader("Historial mensual de almuerzos")

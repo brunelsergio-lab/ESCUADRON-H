@@ -732,3 +732,51 @@ button[kind="secondary"]:has(div:contains("Reiniciar")) {
         padding: .18rem;
     }
 }
+/* ---------- Lista compacta de almuerzo ---------- */
+.lunch-table-head {
+    background: rgba(82, 99, 32, 0.88);
+    border: 1px solid rgba(217, 196, 122, 0.22);
+    border-radius: 9px;
+    color: #f5f0d8;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    line-height: 1;
+    margin-bottom: 0.2rem;
+    padding: 0.42rem 0.45rem;
+    text-transform: uppercase;
+}
+
+.lunch-cell {
+    border-bottom: 1px solid rgba(217, 196, 122, 0.14);
+    color: #f8fafc;
+    font-size: 0.82rem;
+    line-height: 1.15;
+    min-height: 2.15rem;
+    overflow: hidden;
+    padding: 0.36rem 0.3rem 0.28rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lunch-name {
+    font-weight: 850;
+}
+
+.lunch-table-actions {
+    height: 0.35rem;
+}
+
+@media (max-width: 720px) {
+    .lunch-table-head {
+        font-size: 0.62rem;
+        padding: 0.34rem 0.22rem;
+    }
+
+    .lunch-cell {
+        font-size: 0.68rem;
+        min-height: 1.95rem;
+        padding: 0.32rem 0.12rem 0.22rem;
+    }
+}
+
