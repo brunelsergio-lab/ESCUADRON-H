@@ -108,6 +108,21 @@ def _init_sqlite(conn):
         nombre TEXT,
         aula TEXT
     )""")
+    cols_alm_hist = [r[1] for r in c.execute("PRAGMA table_info(almuerzo_historial)").fetchall()]
+    migraciones_alm_hist = {
+        "fecha_hora": "TEXT",
+        "fecha": "TEXT",
+        "orden": "INTEGER",
+        "nombre": "TEXT",
+        "aula": "TEXT",
+    }
+    for col, tipo in migraciones_alm_hist.items():
+        if col not in cols_alm_hist:
+            c.execute(f"ALTER TABLE almuerzo_historial ADD COLUMN {col} {tipo}")
+    if "fecha" not in cols_alm_hist:
+        c.execute("""UPDATE almuerzo_historial
+            SET fecha = substr(fecha_hora, 1, 10)
+            WHERE fecha IS NULL AND fecha_hora IS NOT NULL""")
 
     c.execute("""CREATE TABLE IF NOT EXISTS horarios_config (
         aula TEXT PRIMARY KEY, ent_m TEXT DEFAULT '06:00', sal_m TEXT DEFAULT '12:00',
@@ -193,6 +208,14 @@ def _init_postgres(conn):
         nombre TEXT,
         aula TEXT
     )""")
+    cur.execute("ALTER TABLE almuerzo_historial ADD COLUMN IF NOT EXISTS fecha_hora TEXT")
+    cur.execute("ALTER TABLE almuerzo_historial ADD COLUMN IF NOT EXISTS fecha TEXT")
+    cur.execute("ALTER TABLE almuerzo_historial ADD COLUMN IF NOT EXISTS orden INTEGER")
+    cur.execute("ALTER TABLE almuerzo_historial ADD COLUMN IF NOT EXISTS nombre TEXT")
+    cur.execute("ALTER TABLE almuerzo_historial ADD COLUMN IF NOT EXISTS aula TEXT")
+    cur.execute("""UPDATE almuerzo_historial
+        SET fecha = substr(fecha_hora, 1, 10)
+        WHERE fecha IS NULL AND fecha_hora IS NOT NULL""")
 
     cur.execute("""CREATE TABLE IF NOT EXISTS horarios_config (
         aula TEXT PRIMARY KEY,
