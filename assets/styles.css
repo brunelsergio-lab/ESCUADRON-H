@@ -93,6 +93,24 @@ hr {
 }
 
 /* ---------- Login ---------- */
+
+.login-logo-wrap {
+    width: 100%;
+    max-width: 520px;
+    margin: 0 auto 1.25rem auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.login-logo {
+    width: 260px;
+    max-width: min(260px, 72vw);
+    height: auto;
+    display: block;
+    border-radius: 10px;
+}
+
 .login-hero {
     text-align: center;
     max-width: 520px;

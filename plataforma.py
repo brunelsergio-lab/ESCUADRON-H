@@ -470,8 +470,9 @@ def requerir_login():
     if total_usuarios == 0:
         col_l, col_c, col_r = st.columns([1, 1.25, 1])
         with col_c:
-            if os.path.exists("logo.png"):
-                st.image("logo.png", width=260)
+            logo_login_uri = asset_data_uri("logo.png")
+            if logo_login_uri:
+                st.markdown(f'<div class="login-logo-wrap"><img class="login-logo" src="{logo_login_uri}" alt="Escuadr?n H"></div>', unsafe_allow_html=True)
             st.markdown("""
             <div class="login-hero">
                 <span class="login-badge">Configuración inicial</span>
@@ -501,8 +502,9 @@ def requerir_login():
     if not st.session_state.get("autenticado"):
         col_l, col_c, col_r = st.columns([1, 1.15, 1])
         with col_c:
-            if os.path.exists("logo.png"):
-                st.image("logo.png", width=260)
+            logo_login_uri = asset_data_uri("logo.png")
+            if logo_login_uri:
+                st.markdown(f'<div class="login-logo-wrap"><img class="login-logo" src="{logo_login_uri}" alt="Escuadr?n H"></div>', unsafe_allow_html=True)
             st.markdown("""
             <div class="login-hero">
                 <span class="login-badge">Acceso restringido</span>
