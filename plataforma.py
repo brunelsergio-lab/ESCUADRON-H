@@ -28,6 +28,8 @@ def live_search_input(label, placeholder, key):
     st.session_state[key] = value
     return value
 
+APP_LOGO_FILE = "logo nuevo.jpg"
+
 def excel_bytes(wb):
     buffer = BytesIO()
     wb.save(buffer)
@@ -326,12 +328,19 @@ load_css(os.path.join(os.path.dirname(__file__), "assets", "styles.css"))
 
 
 def asset_data_uri(relative_path):
-    """Convierte un archivo local pequeño en data URI para usarlo dentro de HTML."""
+    """Convierte un archivo local peque?o en data URI para usarlo dentro de HTML."""
     try:
         full_path = os.path.join(os.path.dirname(__file__), relative_path)
+        ext = os.path.splitext(relative_path)[1].lower()
+        mime = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".webp": "image/webp",
+        }.get(ext, "application/octet-stream")
         with open(full_path, "rb") as file:
             encoded = base64.b64encode(file.read()).decode("ascii")
-        return f"data:image/png;base64,{encoded}"
+        return f"data:{mime};base64,{encoded}"
     except Exception:
         return ""
 
@@ -470,7 +479,7 @@ def requerir_login():
     if total_usuarios == 0:
         col_l, col_c, col_r = st.columns([1, 1.25, 1])
         with col_c:
-            logo_login_uri = asset_data_uri("logo.png")
+            logo_login_uri = asset_data_uri(APP_LOGO_FILE)
             if logo_login_uri:
                 st.markdown(f'<div class="login-logo-wrap"><img class="login-logo" src="{logo_login_uri}" alt="Escuadr?n H"></div>', unsafe_allow_html=True)
             st.markdown("""
@@ -502,7 +511,7 @@ def requerir_login():
     if not st.session_state.get("autenticado"):
         col_l, col_c, col_r = st.columns([1, 1.15, 1])
         with col_c:
-            logo_login_uri = asset_data_uri("logo.png")
+            logo_login_uri = asset_data_uri(APP_LOGO_FILE)
             if logo_login_uri:
                 st.markdown(f'<div class="login-logo-wrap"><img class="login-logo" src="{logo_login_uri}" alt="Escuadr?n H"></div>', unsafe_allow_html=True)
             st.markdown("""
@@ -527,8 +536,8 @@ def requerir_login():
         st.stop()
 
     with st.sidebar:
-        if os.path.exists("logo.png"):
-            st.image("logo.png", use_container_width=True)
+        if os.path.exists(APP_LOGO_FILE):
+            st.image(APP_LOGO_FILE, use_container_width=True)
         user = usuario_actual() or {}
         st.markdown(f"""
         <div class="sidebar-card">
@@ -884,7 +893,7 @@ def mostrar_monitor_novedades():
     </div>
     """, unsafe_allow_html=True)
 
-logo_uri = asset_data_uri("logo.png")
+logo_uri = asset_data_uri(APP_LOGO_FILE)
 logo_header_html = f'<img class="rrhh-logo" src="{logo_uri}" alt="Escuadrón H">' if logo_uri else '<div class="rrhh-emblem">EH</div>'
 
 st.markdown(f"""

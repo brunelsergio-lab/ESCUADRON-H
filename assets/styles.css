@@ -5,25 +5,27 @@
    ========================================================== */
 
 :root {
-    --eh-bg: #0f180c;
-    --eh-bg-2: #15220f;
-    --eh-panel: rgba(18, 29, 15, 0.94);
+    --eh-bg: #0b1608;
+    --eh-bg-2: #17310f;
+    --eh-panel: rgba(14, 30, 12, 0.95);
     --eh-panel-2: rgba(255, 255, 255, 0.045);
-    --eh-primary: #4b5320;
-    --eh-primary-soft: #6f7d32;
-    --eh-gold: #d7e51f;
-    --eh-gold-soft: #d8b55a;
+    --eh-primary: #2f6b25;
+    --eh-primary-soft: #6fae45;
+    --eh-gold: #f1b82d;
+    --eh-gold-soft: #f4d36a;
     --eh-text: #f8fafc;
     --eh-muted: #cbd5e1;
     --eh-soft: #e8ead7;
-    --eh-border: rgba(232, 234, 215, 0.20);
+    --eh-border: rgba(244, 211, 106, 0.22);
     --eh-danger: #c05646;
-    --eh-ok: #8fa650;
+    --eh-ok: #66a64b;
+    --eh-sky: #2fa7c9;
+    --eh-sky-soft: #9fe8f4;
 }
 
 html, body, [data-testid="stAppViewContainer"] {
     background:
-        radial-gradient(circle at top left, rgba(215, 229, 31, 0.09), transparent 28%),
+        radial-gradient(circle at top left, rgba(47, 167, 201, 0.10), transparent 28%),
         linear-gradient(135deg, #0b1208 0%, #111827 52%, #121a0d 100%) !important;
 }
 
@@ -53,12 +55,12 @@ hr {
 /* ---------- Sidebar ---------- */
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg, #101b0c 0%, #18240f 54%, #0e1510 100%) !important;
-    border-right: 1px solid rgba(215, 229, 31, 0.12) !important;
+    border-right: 1px solid rgba(241, 184, 45, 0.16) !important;
 }
 
 [data-testid="stSidebar"] [data-testid="stImage"] img {
     border-radius: 14px !important;
-    border: 1px solid rgba(215, 229, 31, 0.18) !important;
+    border: 1px solid rgba(241, 184, 45, 0.22) !important;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25) !important;
 }
 
@@ -137,7 +139,7 @@ hr {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    border: 1px solid rgba(215, 229, 31, 0.25);
+    border: 1px solid rgba(241, 184, 45, 0.28);
     color: var(--eh-gold);
     background: rgba(215, 229, 31, 0.08);
     border-radius: 999px;
@@ -183,7 +185,7 @@ hr {
 .stDownloadButton > button:hover {
     transform: translateY(-1px);
     box-shadow: 0 10px 24px rgba(0,0,0,0.22) !important;
-    border-color: rgba(215, 229, 31, 0.42) !important;
+    border-color: rgba(47, 167, 201, 0.46) !important;
 }
 
 input, textarea, [data-baseweb="select"] > div {
@@ -210,7 +212,7 @@ div[data-testid="stTabs"] button[aria-selected="true"],
 div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
     background: linear-gradient(135deg, #4b5320, #6f7d32) !important;
     color: #ffffff !important;
-    border-color: rgba(215, 229, 31, 0.45) !important;
+    border-color: rgba(241, 184, 45, 0.48) !important;
 }
 
 /* ---------- Panel institucional y KPIs ---------- */
@@ -221,7 +223,7 @@ div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
 .rrhh-panel {
     background:
         linear-gradient(135deg, rgba(47, 55, 23, 0.98) 0%, rgba(75, 83, 32, 0.94) 48%, rgba(17, 24, 39, 0.98) 100%);
-    border: 1px solid rgba(215, 229, 31, 0.28);
+    border: 1px solid rgba(241, 184, 45, 0.32);
     border-radius: 18px;
     padding: 1.15rem;
     margin: 0.15rem 0 1rem 0;
@@ -379,7 +381,7 @@ div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
 .rrhh-kpi-ok { border-left: 4px solid var(--eh-ok); }
 .rrhh-kpi-warn { border-left: 4px solid var(--eh-gold-soft); }
 .rrhh-kpi-alert { border-left: 4px solid var(--eh-danger); }
-.rrhh-kpi-neutral { border-left: 4px solid rgba(215, 229, 31, 0.42); }
+.rrhh-kpi-neutral { border-left: 4px solid rgba(47, 167, 201, 0.46); }
 
 /* ---------- Monitor de novedades ---------- */
 .nov-monitor {
@@ -570,7 +572,7 @@ footer { visibility: hidden; }
     border-radius: 18px;
     padding: 0.3rem;
     background: rgba(8, 15, 7, 0.35);
-    border: 1px solid rgba(215, 229, 31, 0.32);
+    border: 1px solid rgba(241, 184, 45, 0.34);
     box-shadow: 0 16px 34px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
     flex: 0 0 auto;
 }
@@ -586,7 +588,7 @@ footer { visibility: hidden; }
     inset: -40% -10% auto auto;
     width: 320px;
     height: 320px;
-    background: radial-gradient(circle, rgba(215,229,31,.18), transparent 62%);
+    background: radial-gradient(circle, rgba(47,167,201,.20), transparent 62%);
     pointer-events: none;
 }
 
@@ -597,7 +599,7 @@ footer { visibility: hidden; }
     right: 1rem;
     bottom: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(215,229,31,.65), transparent);
+    background: linear-gradient(90deg, transparent, rgba(241,184,45,.68), transparent);
     pointer-events: none;
 }
 
@@ -672,5 +674,61 @@ button[kind="secondary"]:has(div:contains("Reiniciar")) {
     }
     .rrhh-kpi span {
         font-size: .55rem;
+    }
+}
+
+
+/* ---------- Tema logo nuevo GNA ---------- */
+.login-logo {
+    width: 340px;
+    max-width: min(340px, 78vw);
+    padding: 0.65rem 0.9rem;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(241, 184, 45, 0.42);
+    border-radius: 18px;
+    box-shadow: 0 20px 52px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(47, 167, 201, 0.10);
+}
+
+[data-testid="stSidebar"] [data-testid="stImage"] img {
+    background: rgba(255, 255, 255, 0.96) !important;
+    padding: 0.45rem !important;
+    border-color: rgba(241, 184, 45, 0.34) !important;
+}
+
+.rrhh-logo {
+    width: 98px;
+    height: 70px;
+    background: rgba(255, 255, 255, 0.96);
+    border-color: rgba(241, 184, 45, 0.42);
+}
+
+.rrhh-panel {
+    background:
+        radial-gradient(circle at 12% 12%, rgba(47, 167, 201, 0.16), transparent 24%),
+        linear-gradient(135deg, rgba(13, 32, 12, 0.98) 0%, rgba(36, 85, 27, 0.94) 47%, rgba(12, 20, 18, 0.98) 100%) !important;
+}
+
+.login-badge,
+.rrhh-eyebrow,
+.rrhh-live,
+.rrhh-access-card span {
+    color: var(--eh-gold) !important;
+}
+
+.rrhh-date {
+    border-color: rgba(47, 167, 201, 0.34) !important;
+}
+
+@media (max-width: 720px) {
+    .login-logo {
+        width: 260px;
+        max-width: 76vw;
+        padding: 0.5rem 0.65rem;
+    }
+    .rrhh-logo {
+        width: 58px;
+        height: 44px;
+        border-radius: 10px;
+        padding: .18rem;
     }
 }
