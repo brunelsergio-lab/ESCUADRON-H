@@ -661,7 +661,8 @@ AULAS_UNICAS = sorted(df['AULA'].unique())
 # Fecha del reporte
 if 'fecha_reporte' not in st.session_state:
     st.session_state.fecha_reporte = datetime.now().date()
-FECHA_STR = st.session_state.fecha_reporte.isoformat()
+FECHA_PARTE_STR = st.session_state.fecha_reporte.isoformat()
+FECHA_STR = datetime.now().date().isoformat()
 
 # Novedades
 if 'novedades_lista' not in st.session_state:
@@ -956,7 +957,7 @@ tab_usuarios = tabs_creadas[6] if es_admin() else None
 with tab_config:
     st.subheader("📅 Configuración del día y horarios")
     fecha_anterior = st.session_state.fecha_reporte
-    st.session_state.fecha_reporte = st.date_input("Fecha del Reporte", st.session_state.fecha_reporte)
+    st.session_state.fecha_reporte = st.date_input("Fecha del Reporte", st.session_state.fecha_reporte, help="Esta fecha solo cambia el parte y los reportes. Las novedades y el presentismo operativo trabajan con el dia actual.")
     dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
     if fecha_anterior != st.session_state.fecha_reporte:
         db_hor = obtener_horarios_dia(dia_reporte) or obtener_horarios()
@@ -1276,14 +1277,12 @@ with tab_seg:
                             if st.button(label, key=f"loc_{prefijo}_{aula}_{i}", type=btn_type, use_container_width=True):
                                 st.session_state.estado_aulas[aula][ubic_key] = value
                                 guardar_estado_aula(FECHA_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
-                                log_movimiento("Ubicación", "CAMBIAR UBICACIÓN", aula=aula, detalle=f"Turno {turno_act}: {ubicacion_actual} -> {value}")
                                 st.rerun()
 
                     if st.button("Retirar aula", key=f"out_{prefijo}_{aula}", use_container_width=True):
                         st.session_state.estado_aulas[aula][estado_key] = 'FUERA'
                         st.session_state.estado_aulas[aula][salida_key] = datetime.now().strftime("%H:%M")
                         guardar_estado_aula(FECHA_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
-                        log_movimiento("Ubicación", "RETIRAR AULA", aula=aula, detalle=f"Turno {turno_act} | Salida {st.session_state.estado_aulas[aula][salida_key]}")
                         st.rerun()
                 else:
                     st.warning("Aula fuera del instituto. Reingresar para habilitar ubicación.")
@@ -1291,7 +1290,6 @@ with tab_seg:
                         st.session_state.estado_aulas[aula][estado_key] = 'EN INSTITUTO'
                         st.session_state.estado_aulas[aula][salida_key] = None
                         guardar_estado_aula(FECHA_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
-                        log_movimiento("Ubicación", "REINGRESAR AULA", aula=aula, detalle=f"Turno {turno_act}")
                         st.rerun()
 
 # --- TAB: ALMUERZO ---
@@ -1318,7 +1316,8 @@ with tab_alm:
                         if st.button("➕ Marcar", key=f"m_{i}", use_container_width=True):
                             st.session_state.lista_almuerzo.add(r['ORDEN_LIMP'])
                             agregar_almuerzo(FECHA_STR, r['ORDEN_LIMP'])
-                            log_movimiento("Racionamiento", "AGREGAR ALMUERZO", int(r['ORDEN_LIMP']), r['NOMBRE_COMPLETO'], r['AULA'])
+                            if hasattr(_db_manager, "registrar_almuerzo_historial"):
+                                _db_manager.registrar_almuerzo_historial(FECHA_STR, int(r['ORDEN_LIMP']), r['NOMBRE_COMPLETO'], r['AULA'])
                             st.rerun()
     
     st.divider()
@@ -1334,18 +1333,48 @@ with tab_alm:
                 if st.button("❌ Quitar", key=f"quit_{row['ORDEN_LIMP']}", use_container_width=True):
                     st.session_state.lista_almuerzo.discard(row['ORDEN_LIMP'])
                     quitar_almuerzo(FECHA_STR, row['ORDEN_LIMP'])
-                    log_movimiento("Racionamiento", "QUITAR ALMUERZO", int(row['ORDEN_LIMP']), row['NOMBRE_COMPLETO'], row['AULA'])
                     st.toast(f"✅ {row['NOMBRE_COMPLETO']} removido")
                     st.rerun()
             st.markdown("<hr style='margin: 3px 0; border-color: #444;'>", unsafe_allow_html=True)
         if st.button("🗑️ Vaciar lista completa", type="secondary", key="clear_all_lunch"):
-            log_movimiento("Racionamiento", "VACIAR ALMUERZO", detalle=f"Se quitaron {len(st.session_state.lista_almuerzo)} registros")
             for orden in list(st.session_state.lista_almuerzo):
                 quitar_almuerzo(FECHA_STR, orden)
             st.session_state.lista_almuerzo.clear()
             st.rerun()
     else:
         st.info("ℹ️ Aún no hay personal marcado para almorzar.")
+
+    st.divider()
+    st.subheader("Historial mensual de almuerzos")
+    mes_hist_alm = st.date_input("Mes a consultar", datetime.now().date().replace(day=1), key="mes_hist_almuerzo")
+    inicio_mes_alm = mes_hist_alm.replace(day=1)
+    fin_mes_alm = (pd.Timestamp(inicio_mes_alm) + pd.offsets.MonthEnd(0)).date()
+    if hasattr(_db_manager, "obtener_historial_almuerzo"):
+        hist_alm = _db_manager.obtener_historial_almuerzo(inicio_mes_alm.isoformat(), fin_mes_alm.isoformat())
+    else:
+        hist_alm = []
+    if hist_alm:
+        df_hist_alm = pd.DataFrame(hist_alm)
+        resumen_alm = (
+            df_hist_alm.groupby(["orden", "nombre", "aula"], dropna=False)
+            .size()
+            .reset_index(name="Veces en el mes")
+            .sort_values(["Veces en el mes", "nombre"], ascending=[False, True])
+        )
+        resumen_alm = resumen_alm.rename(columns={"orden": "Orden", "nombre": "Nombre", "aula": "Aula"})
+        st.caption(f"Periodo: {inicio_mes_alm.strftime('%d/%m/%Y')} al {fin_mes_alm.strftime('%d/%m/%Y')} | Registros: {len(df_hist_alm)}")
+        st.dataframe(resumen_alm, use_container_width=True, hide_index=True)
+        with st.expander("Ver registros diarios de almuerzo", expanded=False):
+            detalle_alm = df_hist_alm.rename(columns={
+                "fecha_hora": "Fecha/hora registro",
+                "fecha": "Fecha",
+                "orden": "Orden",
+                "nombre": "Nombre",
+                "aula": "Aula",
+            })
+            st.dataframe(detalle_alm[["Fecha", "Fecha/hora registro", "Orden", "Nombre", "Aula"]], use_container_width=True, hide_index=True)
+    else:
+        st.info("No hay registros de almuerzo para el mes seleccionado.")
 
     st.divider()
     if st.session_state.lista_almuerzo:
@@ -1674,13 +1703,14 @@ with tab_res:
     st.subheader("Historial de movimientos")
     col_fi, col_ff = st.columns(2)
     with col_fi:
-        fecha_desde_hist = st.date_input("Desde", st.session_state.fecha_reporte, key="fecha_historial_desde")
+        fecha_desde_hist = st.date_input("Desde", datetime.now().date(), key="fecha_historial_desde")
     with col_ff:
-        fecha_hasta_hist = st.date_input("Hasta", st.session_state.fecha_reporte, key="fecha_historial_hasta")
+        fecha_hasta_hist = st.date_input("Hasta", datetime.now().date(), key="fecha_historial_hasta")
 
     movimientos = obtener_movimientos()
     if movimientos:
         df_mov = pd.DataFrame(movimientos)
+        df_mov = df_mov[df_mov.get("modulo", "") == "Novedades"].copy()
         df_mov = df_mov.rename(columns={
             "fecha_hora": "Fecha/hora",
             "fecha_parte": "Fecha parte",
