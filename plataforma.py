@@ -328,6 +328,133 @@ if eliminar_movimiento is None:
             _db_manager.run(conn, "DELETE FROM movimientos WHERE id=?", (id_mov,))
             conn.commit()
 
+
+
+def usuario_actual():
+    return st.session_state.get("usuario_actual")
+
+
+def es_admin():
+    user = usuario_actual() or {}
+    return user.get("rol") == "admin"
+
+
+def cerrar_sesion():
+    for key in ("usuario_actual", "autenticado"):
+        if key in st.session_state:
+            del st.session_state[key]
+
+
+def requerir_login():
+    total_usuarios = _db_manager.contar_usuarios()
+
+    if total_usuarios == 0:
+        st.markdown("## Configuracion inicial de seguridad")
+        st.info("Crea tu usuario administrador. Despues de esto, nadie podra ingresar sin usuario y contrasena.")
+        with st.form("crear_admin_inicial"):
+            usuario = st.text_input("Usuario administrador", value="admin")
+            password = st.text_input("Contrasena", type="password")
+            password2 = st.text_input("Repetir contrasena", type="password")
+            crear = st.form_submit_button("Crear administrador", type="primary", use_container_width=True)
+        if crear:
+            if not usuario.strip() or not password:
+                st.error("Completa usuario y contrasena.")
+            elif password != password2:
+                st.error("Las contrasenas no coinciden.")
+            elif len(password) < 6:
+                st.error("La contrasena debe tener al menos 6 caracteres.")
+            else:
+                _db_manager.crear_usuario(usuario, password, rol="admin", activo=True)
+                st.success("Administrador creado. Inicia sesion para continuar.")
+                st.rerun()
+        st.stop()
+
+    if not st.session_state.get("autenticado"):
+        st.markdown("## Acceso restringido")
+        st.caption('Escuadron H "Cabo Marcelo Godoy"')
+        with st.form("login_form"):
+            usuario = st.text_input("Usuario")
+            password = st.text_input("Contrasena", type="password")
+            entrar = st.form_submit_button("Ingresar", type="primary", use_container_width=True)
+        if entrar:
+            user = _db_manager.autenticar_usuario(usuario, password)
+            if user:
+                st.session_state.autenticado = True
+                st.session_state.usuario_actual = user
+                st.rerun()
+            else:
+                st.error("Usuario o contrasena incorrectos.")
+        st.stop()
+
+    with st.sidebar:
+        user = usuario_actual() or {}
+        st.caption(f"Usuario: {user.get('usuario', '-')}")
+        st.caption(f"Rol: {user.get('rol', '-')}")
+        if st.button("Cerrar sesion", use_container_width=True):
+            cerrar_sesion()
+            st.rerun()
+
+
+def panel_admin_usuarios():
+    st.subheader("Administracion de usuarios")
+    st.caption("Crea usuarios para quienes puedan ingresar a la aplicacion.")
+
+    with st.form("crear_usuario_form"):
+        c1, c2, c3 = st.columns([2, 2, 1])
+        with c1:
+            nuevo_usuario = st.text_input("Nuevo usuario")
+        with c2:
+            nueva_password = st.text_input("Contrasena inicial", type="password")
+        with c3:
+            nuevo_rol = st.selectbox("Rol", ["usuario", "admin"])
+        crear_usuario_btn = st.form_submit_button("Crear usuario", type="primary", use_container_width=True)
+    if crear_usuario_btn:
+        if not nuevo_usuario.strip() or not nueva_password:
+            st.error("Completa usuario y contrasena.")
+        elif len(nueva_password) < 6:
+            st.error("La contrasena debe tener al menos 6 caracteres.")
+        else:
+            try:
+                _db_manager.crear_usuario(nuevo_usuario, nueva_password, rol=nuevo_rol, activo=True)
+                st.success("Usuario creado.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"No se pudo crear el usuario: {e}")
+
+    usuarios = _db_manager.listar_usuarios()
+    if not usuarios:
+        st.info("No hay usuarios cargados.")
+        return
+
+    st.divider()
+    for user in usuarios:
+        with st.container(border=True):
+            c_info, c_estado, c_pass, c_del = st.columns([3, 1.3, 2, 1])
+            with c_info:
+                estado = "Activo" if int(user.get("activo", 0)) == 1 else "Inactivo"
+                st.markdown(f"**{user['usuario']}** | {user.get('rol', 'usuario')} | {estado}")
+                st.caption(f"Creado: {user.get('creado_en', '-')}")
+            with c_estado:
+                activo = int(user.get("activo", 0)) == 1
+                nuevo_estado = st.toggle("Activo", value=activo, key=f"usr_activo_{user['id']}")
+                if nuevo_estado != activo:
+                    _db_manager.actualizar_estado_usuario(user["id"], nuevo_estado)
+                    st.rerun()
+            with c_pass:
+                nueva = st.text_input("Nueva contrasena", type="password", key=f"usr_pass_{user['id']}")
+                if st.button("Cambiar", key=f"usr_cambiar_{user['id']}", use_container_width=True):
+                    if len(nueva) < 6:
+                        st.warning("Minimo 6 caracteres.")
+                    else:
+                        _db_manager.actualizar_password_usuario(user["id"], nueva)
+                        st.success("Contrasena actualizada.")
+            with c_del:
+                if user.get("usuario") == (usuario_actual() or {}).get("usuario"):
+                    st.caption("Tu usuario")
+                elif st.button("Eliminar", key=f"usr_del_{user['id']}", use_container_width=True):
+                    _db_manager.eliminar_usuario(user["id"])
+                    st.rerun()
+
 # 🔹 1. CSS PARA ESPACIADO (PEGAR AQUI AL INICIO)
 st.markdown("""
 <style>
@@ -449,6 +576,8 @@ def cargar_personal():
 if 'db_iniciada' not in st.session_state:
     init_db()
     st.session_state.db_iniciada = True
+
+requerir_login()
 
 if 'horarios_txt_importado' not in st.session_state:
     st.session_state.horarios_txt_importado = cargar_horarios_txt(r"C:\Users\admin\Desktop\horarios.txt")
@@ -1008,9 +1137,12 @@ if st.button("🚨 RESETEAR ASISTENCIA DEL DÍA", key="reset_asistencia", help="
 # ==============================================================================
 # 4. PESTAÑAS
 # ==============================================================================
-tab_config, tab_nov, tab_seg, tab_alm, tab_plan, tab_res = st.tabs([
-    "Día y horarios", "Novedades", "Ubicación", "Racionamiento", "Legajos y contactos", "Reportes"
-])
+tab_labels = ["Dia y horarios", "Novedades", "Ubicacion", "Racionamiento", "Legajos y contactos", "Reportes"]
+if es_admin():
+    tab_labels.append("Usuarios")
+tabs_creadas = st.tabs(tab_labels)
+tab_config, tab_nov, tab_seg, tab_alm, tab_plan, tab_res = tabs_creadas[:6]
+tab_usuarios = tabs_creadas[6] if es_admin() else None
 
 # --- TAB: CONFIGURACIÓN ---
 with tab_config:
@@ -1043,6 +1175,10 @@ with tab_config:
             guardar_horarios(normalizar_aula(aula), st.session_state.horarios_config[aula])
         st.success("✅ Horarios guardados en base de datos")
         st.rerun()
+
+if tab_usuarios is not None:
+    with tab_usuarios:
+        panel_admin_usuarios()
 
 # --- TAB: NOVEDADES ---
 with tab_nov:
