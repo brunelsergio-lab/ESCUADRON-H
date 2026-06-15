@@ -134,9 +134,9 @@ def formatear_lista_novedades(novedades, estado, curso_fn):
 def formatear_servicio(novedades, estados, curso_fn, titulo):
     filtradas = [n for n in novedades if n['estado'] in estados and curso_fn(n.get('grado', ''))]
     if not filtradas:
-        return f"- {titulo}:"
+        return f"▫️ {titulo}:"
     plural = "ASPIRANTES" if len(filtradas) != 1 else "ASPIRANTE"
-    lineas = [f"- {titulo}: {numero_letras(len(filtradas))} ({len(filtradas)}) {plural}."]
+    lineas = [f"▫️ {titulo}: {numero_letras(len(filtradas))} ({len(filtradas)}) {plural}."]
     for idx, nov in enumerate(filtradas, 1):
         grado = "ASP III ANO" if es_tercer_anio(nov.get('grado', '')) else "ASP I"
         detalle = f" {nov.get('detalle', '').strip()}" if nov.get('detalle') else ""
@@ -192,23 +192,23 @@ def generar_minuta_informativa():
     primera_total_minuta = len(df_presentes_primera_minuta)
 
     lineas = [
-        f'MINUTA INFORMATIVA DEL ESCUADRON H "CABO MARCELO GODOY" DEL DIA {fecha_minuta}',
+        f'MINUTA INFORMATIVA DEL ESCUADRÓN H "CABO MARCELO GODOY" DEL DÍA {fecha_minuta}',
         "",
         f"FE: {TOTAL_ESCUADRON}",
         f"P: {disponibles_minuta}",
         f"A: {len(total_ausentes_minuta)}",
-        f"FORMADOS A PRIMERA OBLIGACION: {primera_total_minuta}",
+        f"FORMADOS A PRIMERA OBLIGACIÓN: {primera_total_minuta}",
         "",
-        "CURSO DE TERCER ANO",
+        "✅ CURSO DE TERCER AÑO",
         "",
         f"FE: {len(df_tercero)}",
         f"P: {len(df_tercero) - len(ausentes_tercero)}",
         f"A: {len(ausentes_tercero)}",
-        f"FORMADOS PRIMERA OBLIGACION: {formados_tercero}",
+        f"FORMADOS PRIMERA OBLIGACIÓN: {formados_tercero}",
         "",
         "OBS:",
         "",
-        "- INGRESO HORARIO DIFERENCIADO:",
+        "▫️ INGRESO HORARIO DIFERENCIADO:",
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_tercer_anio, "SERVICIO DE ARMAS DIURNA"),
         "",
@@ -216,45 +216,45 @@ def generar_minuta_informativa():
         "",
         "NOVEDADES SANITARIAS:",
         "",
-        "- SIN SERVICIO EN DOMICILIO:",
+        "▫️ SIN SERVICIO EN DOMICILIO:",
         formatear_lista_novedades(novedades, "SSD", es_tercer_anio),
         "",
-        "- ART:",
+        "▫️ ART:",
         formatear_lista_novedades(novedades, "ART", es_tercer_anio),
         "",
-        "- DAF:",
+        "▫️ DAF:",
         formatear_lista_novedades(novedades, "DAF", es_tercer_anio),
         "",
-        "- AUTORIZADO:",
+        "▫️ AUTORIZADO:",
         formatear_lista_novedades(novedades, "AUTORIZADO", es_tercer_anio),
         "",
-        "CURSO AUXILIAR OPERATIVO",
+        "✅ CURSO AUXILIAR OPERATIVO",
         f"FE: {len(df_aop)}",
         f"P: {len(df_aop) - len(ausentes_aop)}",
         f"A: {len(ausentes_aop)}",
-        f"FORMADOS PRIMERA OBLIGACION: {formados_aop}",
+        f"FORMADOS PRIMERA OBLIGACIÓN: {formados_aop}",
         "",
         "OBS:",
         "",
-        "- INGRESO EN HORARIO DIFERENCIAL:.-",
+        "▫️ INGRESO EN HORARIO DIFERENCIAL:.-",
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_aop, "SERVICIO DE ARMAS DIURNO"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, es_aop, "DESCANSO DE SERVICIO DE ARMAS NOCTURNO"),
         "",
-        "- ART",
+        "▫️ ART",
         formatear_lista_novedades(novedades, "ART", es_aop),
         "",
-        "- SIN SERVICIO EN DOMICILIO:",
+        "▫️ SIN SERVICIO EN DOMICILIO:",
         formatear_lista_novedades(novedades, "SSD", es_aop),
         "",
-        "- LAO: (A CUENTA DE LAO)",
+        "▫️ LAO: (A CUENTA DE LAO)",
         formatear_lista_novedades(novedades, "LAO", es_aop),
         "",
-        "- LES:",
+        "▫️ LES:",
         formatear_lista_novedades(novedades, "LES", es_aop),
         "",
-        "- DAF:",
+        "▫️ DAF:",
         formatear_lista_novedades(novedades, "DAF", es_aop),
     ]
     return "\n".join(lineas)
@@ -301,7 +301,7 @@ from db_manager import (
     obtener_horarios, guardar_horarios, obtener_horarios_dia, guardar_horarios_dia,
     obtener_asistencia, actualizar_asistencia,
     obtener_contacto, obtener_todos_contactos, guardar_contacto,
-    registrar_movimiento, obtener_movimientos
+    registrar_movimiento, obtener_movimientos, actualizar_movimiento, eliminar_movimiento
 )
 st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout="wide")
 
@@ -1677,7 +1677,7 @@ with tab_res:
     st.divider()
     st.subheader("Minuta informativa")
     minuta_texto = generar_minuta_informativa()
-    st.text_area("Minuta generada automáticamente desde Novedades", value=minuta_texto, height=520, key="minuta_generada")
+    st.text_area("Minuta generada automáticamente desde Novedades", value=minuta_texto, height=520)
     st.download_button(
         "📄 Descargar minuta (.txt)",
         data=minuta_texto.encode("utf-8"),
@@ -1724,9 +1724,7 @@ with tab_res:
             (df_mov["Fecha parte dt"] <= fecha_hasta_hist)
         ].copy()
         df_mov["Clave aspirante"] = df_mov["Orden interno"].fillna(df_mov["Nombre completo"]).astype(str)
-        df_mov = df_mov.sort_values("Fecha/hora", ascending=False).drop_duplicates(
-            subset=["Fecha parte", "Clave aspirante"], keep="first"
-        ).copy()
+        df_mov = df_mov.sort_values("Fecha/hora", ascending=False).copy()
 
         if not df_mov.empty:
             fc1, fc2, fc3 = st.columns(3)
@@ -1762,12 +1760,83 @@ with tab_res:
                 if aspirante_sel:
                     df_mov = df_mov[df_mov["Clave aspirante"] == etiquetas_asp[aspirante_sel]]
 
+        columnas = ["Fecha/hora", "Apellido", "Nombre", "DNI", "CE", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
+
         if not df_mov.empty:
             st.caption(f"{len(df_mov)} movimiento(s) encontrados")
-            columnas = ["Fecha/hora", "Apellido", "Nombre", "DNI", "CE", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.dataframe(df_mov[columnas], use_container_width=True, hide_index=True)
+
+            edit_mov_id = st.session_state.get("editando_movimiento_id")
+            if edit_mov_id:
+                mov_edit = df_mov[df_mov["id"] == edit_mov_id]
+                if not mov_edit.empty:
+                    mov = mov_edit.iloc[0]
+                    with st.form("form_editar_movimiento"):
+                        st.markdown(f"### Editar movimiento de {mov.get('Nombre completo', '-')}")
+                        e1, e2, e3 = st.columns(3)
+                        with e1:
+                            mov_motivo = st.text_input("Motivo", value=str(mov.get("Motivo", "")), key="mov_edit_motivo")
+                        with e2:
+                            opciones_presencia = ["Ausente", "Presente en instituto", "Presente en escuadrón"]
+                            presencia_actual = str(mov.get("Presencia", "Ausente"))
+                            indice_presencia = opciones_presencia.index(presencia_actual) if presencia_actual in opciones_presencia else 0
+                            mov_presencia = st.selectbox("Presencia", opciones_presencia, index=indice_presencia, key="mov_edit_presencia")
+                        with e3:
+                            mov_aula = st.text_input("Aula", value=str(mov.get("Aula", "")), key="mov_edit_aula")
+                        e4, e5 = st.columns(2)
+                        with e4:
+                            mov_desde = st.text_input("Desde", value=str(mov.get("Desde", "")), key="mov_edit_desde")
+                        with e5:
+                            mov_hasta = st.text_input("Hasta", value=str(mov.get("Hasta", "")), key="mov_edit_hasta")
+                        mov_obs = st.text_input("Observación", value=str(mov.get("Observación", "")), key="mov_edit_obs")
+                        guardar_mov, cancelar_mov = st.columns([3, 1])
+                        with guardar_mov:
+                            guardar = st.form_submit_button("Guardar movimiento", type="primary", use_container_width=True)
+                        with cancelar_mov:
+                            cancelar = st.form_submit_button("Cancelar", use_container_width=True)
+                        if guardar:
+                            detalle_nuevo = f"{mov_motivo.upper()} | {mov_presencia} | {mov_desde.upper()} a {mov_hasta.upper()} | {mov_obs.upper()}"
+                            orden_valor = mov.get("Orden interno")
+                            try:
+                                orden_valor = int(orden_valor) if pd.notna(orden_valor) and str(orden_valor).strip() else None
+                            except Exception:
+                                orden_valor = None
+                            actualizar_movimiento(int(mov["id"]), {
+                                "fecha_parte": mov.get("Fecha parte"),
+                                "modulo": mov.get("Módulo", "Historial"),
+                                "accion": "EDITAR MOVIMIENTO",
+                                "orden": orden_valor,
+                                "nombre": mov.get("Nombre completo"),
+                                "aula": mov_aula.upper(),
+                                "detalle": detalle_nuevo,
+                            })
+                            st.session_state.editando_movimiento_id = None
+                            st.success("Movimiento actualizado")
+                            st.rerun()
+                        if cancelar:
+                            st.session_state.editando_movimiento_id = None
+                            st.rerun()
+
+            with st.expander("Administrar movimientos filtrados", expanded=False):
+                st.caption("Desde acá podés editar o borrar registros de prueba del historial.")
+                for _, mov in df_mov.iterrows():
+                    mov_id = int(mov["id"])
+                    c_info, c_edit, c_del = st.columns([6, 1, 1])
+                    with c_info:
+                        st.markdown(f"**{mov.get('Apellido', '')} {mov.get('Nombre', '')}** | {mov.get('Motivo', '-')} | {mov.get('Presencia', '-')}")
+                        st.caption(f"{mov.get('Fecha/hora', '-')} | Aula {mov.get('Aula', '-')} | {mov.get('Desde', '-')} a {mov.get('Hasta', '-')} | {mov.get('Observación', '')}")
+                    with c_edit:
+                        if st.button("Editar", key=f"edit_mov_{mov_id}", use_container_width=True):
+                            st.session_state.editando_movimiento_id = mov_id
+                            st.rerun()
+                    with c_del:
+                        if st.button("Eliminar", key=f"del_mov_{mov_id}", use_container_width=True):
+                            eliminar_movimiento(mov_id)
+                            if st.session_state.get("editando_movimiento_id") == mov_id:
+                                st.session_state.editando_movimiento_id = None
+                            st.toast("Movimiento eliminado")
+                            st.rerun()
         else:
-            columnas = ["Fecha/hora", "Apellido", "Nombre", "DNI", "CE", "Aula", "Motivo", "Presencia", "Desde", "Hasta", "Observación"]
             st.info("No hay movimientos para los filtros seleccionados.")
 
         historial_df = df_mov[columnas] if not df_mov.empty else pd.DataFrame(columns=columnas)

@@ -281,6 +281,25 @@ def obtener_movimientos(fecha_parte=None):
         return fetch_all(cur)
 
 
+def actualizar_movimiento(id_mov, data):
+    with get_db() as conn:
+        run(conn, """UPDATE movimientos SET
+            fecha_parte=?, modulo=?, accion=?, orden=?, nombre=?, aula=?, detalle=?
+            WHERE id=?""",
+            (
+                data.get('fecha_parte'), data.get('modulo'), data.get('accion'),
+                data.get('orden'), data.get('nombre'), data.get('aula'),
+                data.get('detalle', ''), id_mov
+            ))
+        conn.commit()
+
+
+def eliminar_movimiento(id_mov):
+    with get_db() as conn:
+        run(conn, "DELETE FROM movimientos WHERE id=?", (id_mov,))
+        conn.commit()
+
+
 # --- ESTADO AULAS ---
 def obtener_estado_aulas(fecha):
     with get_db() as conn:
