@@ -1381,26 +1381,58 @@ with tab_alm:
         st.info("Aun no hay personal marcado para almorzar.")
 
     st.divider()
-    st.subheader("Historial mensual de almuerzos")
-    mes_hist_alm = st.date_input("Mes a consultar", datetime.now().date().replace(day=1), key="mes_hist_almuerzo")
-    inicio_mes_alm = mes_hist_alm.replace(day=1)
-    fin_mes_alm = (pd.Timestamp(inicio_mes_alm) + pd.offsets.MonthEnd(0)).date()
-    if hasattr(_db_manager, "obtener_historial_almuerzo"):
-        hist_alm = _db_manager.obtener_historial_almuerzo(inicio_mes_alm.isoformat(), fin_mes_alm.isoformat())
+    st.subheader("Historial de racionamiento")
+    col_desde_rac, col_hasta_rac = st.columns(2)
+    with col_desde_rac:
+        fecha_desde_rac = st.date_input("Desde", datetime.now().date(), key="fecha_racionamiento_desde")
+    with col_hasta_rac:
+        fecha_hasta_rac = st.date_input("Hasta", datetime.now().date(), key="fecha_racionamiento_hasta")
+
+    if fecha_desde_rac > fecha_hasta_rac:
+        st.warning("La fecha desde no puede ser mayor que la fecha hasta.")
+        hist_alm = []
+    elif hasattr(_db_manager, "obtener_historial_almuerzo"):
+        hist_alm = _db_manager.obtener_historial_almuerzo(fecha_desde_rac.isoformat(), fecha_hasta_rac.isoformat())
     else:
         hist_alm = []
+
     if hist_alm:
         df_hist_alm = pd.DataFrame(hist_alm)
-        resumen_alm = (
-            df_hist_alm.groupby(["orden", "nombre", "aula"], dropna=False)
-            .size()
-            .reset_index(name="Veces en el mes")
-            .sort_values(["Veces en el mes", "nombre"], ascending=[False, True])
+        for col in ["nombre", "aula", "orden", "fecha", "fecha_hora"]:
+            if col not in df_hist_alm.columns:
+                df_hist_alm[col] = ""
+
+        df_hist_alm["_orden_num"] = pd.to_numeric(df_hist_alm["orden"], errors="coerce")
+        aspirantes_rac = (
+            df_hist_alm.assign(_label=df_hist_alm.apply(
+                lambda r: f"{int(r['_orden_num']) if pd.notna(r['_orden_num']) else ''} - {str(r['nombre']).strip()}".strip(" -"),
+                axis=1,
+            ))["_label"]
+            .dropna()
+            .drop_duplicates()
+            .sort_values()
+            .tolist()
         )
-        resumen_alm = resumen_alm.rename(columns={"orden": "Orden", "nombre": "Nombre", "aula": "Aula"})
-        st.caption(f"Periodo: {inicio_mes_alm.strftime('%d/%m/%Y')} al {fin_mes_alm.strftime('%d/%m/%Y')} | Registros: {len(df_hist_alm)}")
-        st.dataframe(resumen_alm, use_container_width=True, hide_index=True)
-        with st.expander("Ver registros diarios de almuerzo", expanded=False):
+        aspirante_rac = st.selectbox(
+            "Filtrar por aspirante",
+            aspirantes_rac,
+            index=None,
+            placeholder="Escribi o deja vacio para ver todo",
+            key="filtro_aspirante_racionamiento",
+        )
+        if aspirante_rac:
+            orden_filtrado = aspirante_rac.split(" - ", 1)[0].strip()
+            if orden_filtrado.isdigit():
+                df_hist_alm = df_hist_alm[df_hist_alm["_orden_num"] == int(orden_filtrado)]
+
+        st.caption(
+            f"Periodo: {fecha_desde_rac.strftime('%d/%m/%Y')} al {fecha_hasta_rac.strftime('%d/%m/%Y')} | "
+            f"Registros: {len(df_hist_alm)}"
+        )
+
+        if df_hist_alm.empty:
+            st.info("No hay registros para el aspirante seleccionado en ese rango.")
+        else:
             detalle_alm = df_hist_alm.rename(columns={
                 "fecha_hora": "Fecha/hora registro",
                 "fecha": "Fecha",
@@ -1408,9 +1440,20 @@ with tab_alm:
                 "nombre": "Nombre",
                 "aula": "Aula",
             })
-            st.dataframe(detalle_alm[["Fecha", "Fecha/hora registro", "Orden", "Nombre", "Aula"]], use_container_width=True, hide_index=True)
+            detalle_alm = detalle_alm[["Fecha", "Fecha/hora registro", "Orden", "Nombre", "Aula"]]
+            st.dataframe(detalle_alm, use_container_width=True, hide_index=True, height=300)
+
+            resumen_alm = (
+                df_hist_alm.groupby(["orden", "nombre", "aula"], dropna=False)
+                .size()
+                .reset_index(name="Veces en el rango")
+                .sort_values(["Veces en el rango", "nombre"], ascending=[False, True])
+                .rename(columns={"orden": "Orden", "nombre": "Nombre", "aula": "Aula"})
+            )
+            with st.expander("Resumen por aspirante", expanded=True):
+                st.dataframe(resumen_alm, use_container_width=True, hide_index=True)
     else:
-        st.info("No hay registros de almuerzo para el mes seleccionado.")
+        st.info("No hay registros de racionamiento para el rango seleccionado.")
 
     st.divider()
     if st.session_state.lista_almuerzo:
