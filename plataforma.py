@@ -1328,35 +1328,55 @@ with tab_alm:
             .sort_values('ORDEN_LIMP')
             .reset_index(drop=True)
         )
-        st.caption(f"Total que almuerzan: {len(df_lista)}")
+        tabla_almuerzo = pd.DataFrame({
+            "Quitar": False,
+            "Nro": range(1, len(df_lista) + 1),
+            "Orden": df_lista["ORDEN_LIMP"].astype(int),
+            "Nombre": df_lista["NOMBRE_COMPLETO"],
+            "Grado": df_lista["GRADO"],
+            "CE": df_lista["CE"],
+            "DNI": df_lista["DNI"],
+            "Aula": df_lista["AULA"],
+        })
+        st.caption(f"Total que almuerzan: {len(tabla_almuerzo)}")
+        altura_tabla_almuerzo = min(330, 38 + (len(tabla_almuerzo) + 1) * 34)
+        tabla_editada = st.data_editor(
+            tabla_almuerzo,
+            hide_index=True,
+            use_container_width=True,
+            height=altura_tabla_almuerzo,
+            disabled=["Nro", "Orden", "Nombre", "Grado", "CE", "DNI", "Aula"],
+            column_config={
+                "Quitar": st.column_config.CheckboxColumn("Quitar", help="Marcar para quitar de la lista"),
+                "Nro": st.column_config.NumberColumn("Nro", width="small"),
+                "Orden": st.column_config.NumberColumn("Orden", width="small"),
+                "Nombre": st.column_config.TextColumn("Nombre", width="large"),
+                "Grado": st.column_config.TextColumn("Grado", width="medium"),
+                "CE": st.column_config.TextColumn("CE", width="small"),
+                "DNI": st.column_config.TextColumn("DNI", width="medium"),
+                "Aula": st.column_config.TextColumn("Aula", width="small"),
+            },
+            key="tabla_almuerzo_compacta",
+        )
 
-        header_cols = st.columns([0.45, 0.75, 3.1, 1.05, 1.0, 1.15, 0.8, 0.9])
-        for col, label in zip(header_cols, ["Nro", "Orden", "Nombre", "Grado", "CE", "DNI", "Aula", "Accion"]):
-            col.markdown(f"<div class='lunch-table-head'>{label}</div>", unsafe_allow_html=True)
-
-        for nro, (_, row) in enumerate(df_lista.iterrows(), 1):
-            orden_alm = int(row['ORDEN_LIMP'])
-            row_cols = st.columns([0.45, 0.75, 3.1, 1.05, 1.0, 1.15, 0.8, 0.9])
-            row_cols[0].markdown(f"<div class='lunch-cell'>{nro}</div>", unsafe_allow_html=True)
-            row_cols[1].markdown(f"<div class='lunch-cell'>{orden_alm}</div>", unsafe_allow_html=True)
-            row_cols[2].markdown(f"<div class='lunch-cell lunch-name'>{row['NOMBRE_COMPLETO']}</div>", unsafe_allow_html=True)
-            row_cols[3].markdown(f"<div class='lunch-cell'>{row['GRADO']}</div>", unsafe_allow_html=True)
-            row_cols[4].markdown(f"<div class='lunch-cell'>{row['CE']}</div>", unsafe_allow_html=True)
-            row_cols[5].markdown(f"<div class='lunch-cell'>{row['DNI']}</div>", unsafe_allow_html=True)
-            row_cols[6].markdown(f"<div class='lunch-cell'>{row['AULA']}</div>", unsafe_allow_html=True)
-            with row_cols[7]:
-                if st.button("Quitar", key=f"quit_{orden_alm}", use_container_width=True):
-                    st.session_state.lista_almuerzo.discard(row['ORDEN_LIMP'])
-                    quitar_almuerzo(FECHA_STR, row['ORDEN_LIMP'])
-                    st.toast(f"{row['NOMBRE_COMPLETO']} removido")
+        col_quitar, col_vaciar = st.columns([1, 1])
+        with col_quitar:
+            if st.button("Quitar seleccionados", use_container_width=True, key="remove_selected_lunch"):
+                seleccionados = tabla_editada[tabla_editada["Quitar"]]
+                if seleccionados.empty:
+                    st.toast("No marcaste ningun aspirante para quitar")
+                else:
+                    for orden in seleccionados["Orden"].astype(int).tolist():
+                        st.session_state.lista_almuerzo.discard(orden)
+                        quitar_almuerzo(FECHA_STR, orden)
+                    st.toast(f"Se quitaron {len(seleccionados)} aspirante(s) de la lista")
                     st.rerun()
-
-        st.markdown("<div class='lunch-table-actions'></div>", unsafe_allow_html=True)
-        if st.button("Vaciar lista completa", type="secondary", key="clear_all_lunch", use_container_width=True):
-            for orden in list(st.session_state.lista_almuerzo):
-                quitar_almuerzo(FECHA_STR, orden)
-            st.session_state.lista_almuerzo.clear()
-            st.rerun()
+        with col_vaciar:
+            if st.button("Vaciar lista completa", type="secondary", key="clear_all_lunch", use_container_width=True):
+                for orden in list(st.session_state.lista_almuerzo):
+                    quitar_almuerzo(FECHA_STR, orden)
+                st.session_state.lista_almuerzo.clear()
+                st.rerun()
     else:
         st.info("Aun no hay personal marcado para almorzar.")
 
