@@ -112,6 +112,27 @@ def es_aop(valor):
     texto = str(valor).upper()
     return "AOP" in texto or "CAO" in texto or "AUXILIAR" in texto
 
+
+def normalizar_hora_ingreso(valor):
+    texto = str(valor or "06:00").strip().replace(".", ":")
+    if not texto:
+        return "06:00"
+    digitos = "".join(ch for ch in texto if ch.isdigit())
+    if ":" not in texto and len(digitos) in {3, 4}:
+        digitos = digitos.zfill(4)
+        return f"{digitos[:2]}:{digitos[2:]}"
+    if ":" in texto:
+        partes = texto.split(":", 1)
+        if all(p.strip().isdigit() for p in partes):
+            return f"{int(partes[0]):02d}:{int(partes[1]):02d}"
+    return texto
+
+
+def aula_ingresa_primera_obligacion(aula):
+    horarios = st.session_state.get("horarios_config", {})
+    cfg = horarios.get(aula) or horarios.get(normalizar_aula(aula)) or {}
+    return normalizar_hora_ingreso(cfg.get("ent_m", "06:00")) == "06:00"
+
 def numero_letras(n):
     mapa = {
         0: "CERO", 1: "UN", 2: "DOS", 3: "TRES", 4: "CUATRO", 5: "CINCO",
@@ -145,6 +166,24 @@ def formatear_servicio(novedades, estados, curso_fn, titulo):
         lineas.append(f"{idx}. {grado} {nov['nombre']}{detalle}")
     return "\n".join(lineas)
 
+
+def formatear_ingreso_diferenciado(df_presentes_escuadron, curso_fn):
+    lineas = []
+    for aula in AULAS_UNICAS:
+        cfg = st.session_state.get("horarios_config", {}).get(aula, {})
+        hora = normalizar_hora_ingreso(cfg.get("ent_m", "06:00"))
+        if hora == "06:00":
+            continue
+        alumnos = df_presentes_escuadron[
+            (df_presentes_escuadron["AULA"] == aula) &
+            (df_presentes_escuadron["GRADO"].map(curso_fn))
+        ]
+        cant = len(alumnos)
+        if cant:
+            lineas.append(f"INGRESO {hora} HS: {numero_letras(cant)} ({cant}) aspirante(s) del aula {aula}.")
+    return "\n".join(lineas) if lineas else ".-"
+
+
 def generar_minuta_informativa():
     fecha_minuta = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
 
@@ -173,7 +212,7 @@ def generar_minuta_informativa():
 
     total_ausentes_minuta = ausentes_novedad | (ausentes_manuales - presentes_instituto_manuales)
 
-    df_presentes_primera_minuta = df[
+    df_presentes_escuadron_minuta = df[
         (~df['ORDEN_LIMP'].isin(total_ausentes_minuta)) &
         (
             df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
@@ -182,6 +221,9 @@ def generar_minuta_informativa():
              (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)) &
              (df['AULA'].map(lambda aula: st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO')) == 'EN INSTITUTO'))
         )
+    ]
+    df_presentes_primera_minuta = df_presentes_escuadron_minuta[
+        df_presentes_escuadron_minuta['AULA'].map(aula_ingresa_primera_obligacion)
     ]
 
     df_tercero = df[df['GRADO'].map(es_tercer_anio)]
@@ -211,7 +253,7 @@ def generar_minuta_informativa():
         "OBS:",
         "",
         "▫️ INGRESO HORARIO DIFERENCIADO:",
-        "",
+        formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_tercer_anio),
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_tercer_anio, "SERVICIO DE ARMAS DIURNA"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, es_tercer_anio, "DESCANSO DE SERVICIO DE ARMAS NOCTURNO"),
@@ -238,8 +280,8 @@ def generar_minuta_informativa():
         "",
         "OBS:",
         "",
-        "▫️ INGRESO EN HORARIO DIFERENCIAL:.-",
-        "",
+        "▫️ INGRESO EN HORARIO DIFERENCIAL:",
+        formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_aop),
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_aop, "SERVICIO DE ARMAS DIURNO"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, es_aop, "DESCANSO DE SERVICIO DE ARMAS NOCTURNO"),
@@ -805,7 +847,7 @@ for _, row in df.iterrows():
 disponibles = TOTAL_ESCUADRON - len(total_ausentes)
 total_fuera = fuera_por_aula + len(total_ausentes)
 
-df_presentes_primera = df[
+df_presentes_escuadron_base = df[
     (~df['ORDEN_LIMP'].isin(total_ausentes)) &
     (
         df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
@@ -814,6 +856,9 @@ df_presentes_primera = df[
          (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)) &
          (df['AULA'].map(lambda aula: st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO')) == 'EN INSTITUTO'))
     )
+]
+df_presentes_primera = df_presentes_escuadron_base[
+    df_presentes_escuadron_base['AULA'].map(aula_ingresa_primera_obligacion)
 ]
 primera_total = len(df_presentes_primera)
 primera_tercer_anio = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_tercer_anio)])
@@ -2087,7 +2132,7 @@ with tab_res:
         aulas_0600 = []
         for aula in AULAS_UNICAS:
             hor = st.session_state.horarios_config[aula]
-            if hor.get('ent_m') == '06:00':
+            if normalizar_hora_ingreso(hor.get('ent_m')) == '06:00':
                 aulas_0600.append(aula)
     
         texto_0600 = (
@@ -2102,8 +2147,8 @@ with tab_res:
         otros_ingresos = []
         for aula in AULAS_UNICAS:
             hor = st.session_state.horarios_config[aula]
-            if hor.get('ent_m') != '06:00':
-                cant = len(df_presentes_primera[df_presentes_primera['AULA'] == aula])
+            if normalizar_hora_ingreso(hor.get('ent_m')) != '06:00':
+                cant = len(df_presentes_escuadron_base[df_presentes_escuadron_base['AULA'] == aula])
                 otros_ingresos.append(f"{aula}: {hor.get('ent_m')} hs ({cant})")
         if otros_ingresos:
             ws.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=10)
