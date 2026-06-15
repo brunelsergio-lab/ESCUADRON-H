@@ -145,22 +145,59 @@ def formatear_servicio(novedades, estados, curso_fn, titulo):
 
 def generar_minuta_informativa():
     fecha_minuta = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
-    novedades = st.session_state.novedades_lista
+
+    # La minuta debe reflejar la base actual, no el estado que quedo en pantalla.
+    novedades = obtener_novedades(FECHA_STR)
+    estado_asistencia_actual = obtener_asistencia(FECHA_STR)
+    st.session_state.novedades_lista = novedades
+    st.session_state.estado_asistencia = estado_asistencia_actual
+
+    ambito_minuta = {
+        n['orden']: ambito_efectivo(n)
+        for n in novedades
+    }
+    ausentes_novedad = {orden for orden, ambito in ambito_minuta.items() if ambito == "AUSENTE"}
+    presentes_instituto_novedad = {orden for orden, ambito in ambito_minuta.items() if ambito in {"INSTITUTO", "ESCUADRON"}}
+    presentes_escuadron_novedad = {orden for orden, ambito in ambito_minuta.items() if ambito == "ESCUADRON"}
+    ausentes_manuales = {orden for orden, estado in estado_asistencia_actual.items() if estado == "AUSENTE"}
+    presentes_instituto_manuales = {
+        orden for orden, estado in estado_asistencia_actual.items()
+        if estado in {"PRESENTE", "PRESENTE EN INSTITUTO", "PRESENTE EN ESCUADRÓN"}
+    }
+    presentes_escuadron_manuales = {
+        orden for orden, estado in estado_asistencia_actual.items()
+        if estado in {"PRESENTE", "PRESENTE EN ESCUADRÓN"}
+    }
+
+    total_ausentes_minuta = (ausentes_novedad | ausentes_manuales) - presentes_instituto_manuales
+
+    df_presentes_primera_minuta = df[
+        (~df['ORDEN_LIMP'].isin(total_ausentes_minuta)) &
+        (
+            df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
+            df['ORDEN_LIMP'].isin(presentes_escuadron_manuales) |
+            ((~df['ORDEN_LIMP'].isin(ambito_minuta.keys())) &
+             (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)) &
+             (df['AULA'].map(lambda aula: st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO')) == 'EN INSTITUTO'))
+        )
+    ]
 
     df_tercero = df[df['GRADO'].map(es_tercer_anio)]
     df_aop = df[df['GRADO'].map(es_aop)]
-    ausentes_tercero = set(df_tercero['ORDEN_LIMP']) & total_ausentes
-    ausentes_aop = set(df_aop['ORDEN_LIMP']) & total_ausentes
-    formados_tercero = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_tercer_anio)])
-    formados_aop = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_aop)])
+    ausentes_tercero = set(df_tercero['ORDEN_LIMP']) & total_ausentes_minuta
+    ausentes_aop = set(df_aop['ORDEN_LIMP']) & total_ausentes_minuta
+    formados_tercero = len(df_presentes_primera_minuta[df_presentes_primera_minuta['GRADO'].map(es_tercer_anio)])
+    formados_aop = len(df_presentes_primera_minuta[df_presentes_primera_minuta['GRADO'].map(es_aop)])
+    disponibles_minuta = TOTAL_ESCUADRON - len(total_ausentes_minuta)
+    primera_total_minuta = len(df_presentes_primera_minuta)
 
     lineas = [
         f'MINUTA INFORMATIVA DEL ESCUADRON H "CABO MARCELO GODOY" DEL DIA {fecha_minuta}',
         "",
         f"FE: {TOTAL_ESCUADRON}",
-        f"P: {disponibles}",
-        f"A: {len(total_ausentes)}",
-        f"FORMADOS A PRIMERA OBLIGACION: {primera_total}",
+        f"P: {disponibles_minuta}",
+        f"A: {len(total_ausentes_minuta)}",
+        f"FORMADOS A PRIMERA OBLIGACION: {primera_total_minuta}",
         "",
         "CURSO DE TERCER ANO",
         "",
