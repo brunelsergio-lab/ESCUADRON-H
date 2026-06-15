@@ -329,6 +329,96 @@ if eliminar_movimiento is None:
             conn.commit()
 
 
+if not hasattr(_db_manager, "contar_usuarios"):
+    import hashlib as _hashlib
+    import hmac as _hmac
+    import os as _os
+    from datetime import datetime as _dt_auth
+
+    def _auth_hash_password(password, salt=None):
+        if salt is None:
+            salt = _os.urandom(16).hex()
+        digest = _hashlib.pbkdf2_hmac("sha256", str(password).encode("utf-8"), bytes.fromhex(salt), 120000)
+        return salt, digest.hex()
+
+    def _auth_ensure_table():
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, """CREATE TABLE IF NOT EXISTS usuarios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                usuario TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                salt TEXT NOT NULL,
+                rol TEXT NOT NULL DEFAULT 'usuario',
+                activo INTEGER NOT NULL DEFAULT 1,
+                creado_en TEXT NOT NULL
+            )""")
+            conn.commit()
+
+    def _contar_usuarios():
+        _auth_ensure_table()
+        with _db_manager.get_db() as conn:
+            cur = _db_manager.run(conn, "SELECT COUNT(*) AS total FROM usuarios")
+            row = cur.fetchone()
+            return int(row["total"] if isinstance(row, dict) else row[0])
+
+    def _crear_usuario(usuario, password, rol="usuario", activo=True):
+        _auth_ensure_table()
+        usuario = str(usuario).strip().lower()
+        salt, password_hash = _auth_hash_password(password)
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, """INSERT INTO usuarios (usuario, password_hash, salt, rol, activo, creado_en)
+                VALUES (?, ?, ?, ?, ?, ?)""",
+                (usuario, password_hash, salt, rol, 1 if activo else 0, _dt_auth.now().isoformat(timespec="seconds")))
+            conn.commit()
+
+    def _obtener_usuario(usuario):
+        _auth_ensure_table()
+        with _db_manager.get_db() as conn:
+            cur = _db_manager.run(conn, "SELECT * FROM usuarios WHERE usuario=?", (str(usuario).strip().lower(),))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+    def _autenticar_usuario(usuario, password):
+        user = _obtener_usuario(usuario)
+        if not user or int(user.get("activo", 0)) != 1:
+            return None
+        _, password_hash = _auth_hash_password(password, user["salt"])
+        if not _hmac.compare_digest(password_hash, user["password_hash"]):
+            return None
+        return {"id": user["id"], "usuario": user["usuario"], "rol": user.get("rol", "usuario")}
+
+    def _listar_usuarios():
+        _auth_ensure_table()
+        with _db_manager.get_db() as conn:
+            cur = _db_manager.run(conn, "SELECT id, usuario, rol, activo, creado_en FROM usuarios ORDER BY usuario")
+            return _db_manager.fetch_all(cur)
+
+    def _actualizar_password_usuario(id_usuario, password):
+        salt, password_hash = _auth_hash_password(password)
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, "UPDATE usuarios SET password_hash=?, salt=? WHERE id=?", (password_hash, salt, id_usuario))
+            conn.commit()
+
+    def _actualizar_estado_usuario(id_usuario, activo):
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, "UPDATE usuarios SET activo=? WHERE id=?", (1 if activo else 0, id_usuario))
+            conn.commit()
+
+    def _eliminar_usuario(id_usuario):
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, "DELETE FROM usuarios WHERE id=?", (id_usuario,))
+            conn.commit()
+
+    _db_manager.contar_usuarios = _contar_usuarios
+    _db_manager.crear_usuario = _crear_usuario
+    _db_manager.obtener_usuario = _obtener_usuario
+    _db_manager.autenticar_usuario = _autenticar_usuario
+    _db_manager.listar_usuarios = _listar_usuarios
+    _db_manager.actualizar_password_usuario = _actualizar_password_usuario
+    _db_manager.actualizar_estado_usuario = _actualizar_estado_usuario
+    _db_manager.eliminar_usuario = _eliminar_usuario
+
+
 
 def usuario_actual():
     return st.session_state.get("usuario_actual")
