@@ -1713,13 +1713,20 @@ with tab_res:
     st.subheader("Minuta informativa")
     minuta_texto = generar_minuta_informativa()
     st.text_area("Minuta generada automáticamente desde Novedades", value=minuta_texto, height=520)
+    nombre_minuta = f"MINUTA_ESCUADRON_H_{st.session_state.fecha_reporte.strftime('%d%m%Y')}.txt"
+    minuta_bytes = minuta_texto.encode("utf-8-sig")
     st.download_button(
-        "📄 Descargar minuta (.txt)",
-        data=minuta_texto.encode("utf-8"),
-        file_name=f"MINUTA_ESCUADRON_H_{st.session_state.fecha_reporte.strftime('%d%m%Y')}.txt",
-        mime="text/plain",
+        "Descargar minuta (.txt)",
+        data=minuta_bytes,
+        file_name=nombre_minuta,
+        mime="text/plain; charset=utf-8",
+        key=f"descargar_minuta_{st.session_state.fecha_reporte.strftime('%Y%m%d')}_{len(minuta_bytes)}",
+        on_click="ignore",
         use_container_width=True
     )
+    if st.button("Forzar descarga de minuta", use_container_width=True, key="forzar_descarga_minuta"):
+        descargar_archivo_auto(minuta_bytes, nombre_minuta, "text/plain;charset=utf-8")
+
 
     st.divider()
     st.subheader("Historial de movimientos")
