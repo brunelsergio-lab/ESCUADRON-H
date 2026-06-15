@@ -779,4 +779,10 @@ button[kind="secondary"]:has(div:contains("Reiniciar")) {
         padding: 0.32rem 0.12rem 0.22rem;
     }
 }
+/* Oculta la ayuda nativa "Press Enter to submit" en campos de formulario */
+[data-testid="InputInstructions"],
+[data-baseweb="input"] + div[aria-live="polite"] {
+    display: none !important;
+    visibility: hidden !important;
+}
 

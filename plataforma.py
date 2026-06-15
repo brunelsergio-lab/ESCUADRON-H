@@ -141,20 +141,7 @@ def hora_ingreso_aula(aula):
 
 
 def aula_ingresa_primera_obligacion(aula, ahora=None, fecha_objetivo=None):
-    hora = hora_ingreso_aula(aula)
-    if hora == "06:00":
-        return True
-    ahora = ahora or ahora_local()
-    fecha_objetivo = fecha_objetivo or st.session_state.get("fecha_reporte", ahora.date())
-    if fecha_objetivo < ahora.date():
-        return True
-    if fecha_objetivo > ahora.date():
-        return False
-    try:
-        hora_obj = datetime.strptime(hora, "%H:%M").time()
-    except ValueError:
-        return False
-    return ahora.time() >= hora_obj
+    return hora_ingreso_aula(aula) == "06:00"
 
 def numero_letras(n):
     mapa = {
@@ -765,32 +752,6 @@ if 'horarios_config' not in st.session_state:
 # Asistencia diaria
 if 'estado_asistencia' not in st.session_state:
     st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
-
-# Refresco silencioso solo cuando falta cumplirse un horario de ingreso del dia.
-if st.session_state.fecha_reporte == ahora_local().date():
-    proximos_ingresos = []
-    for aula in AULAS_UNICAS:
-        hora = hora_ingreso_aula(aula)
-        if hora == "06:00":
-            continue
-        try:
-            hora_obj = datetime.strptime(hora, "%H:%M").time()
-        except ValueError:
-            continue
-        ingreso_dt = datetime.combine(ahora_local().date(), hora_obj, tzinfo=APP_TZ)
-        segundos = (ingreso_dt - ahora_local()).total_seconds()
-        if segundos > 0:
-            proximos_ingresos.append(segundos)
-    if proximos_ingresos:
-        espera_ms = int((min(proximos_ingresos) + 2) * 1000)
-        components.html(
-            f"""
-            <script>
-            setTimeout(() => window.parent.location.reload(), {espera_ms});
-            </script>
-            """,
-            height=0,
-        )
 
 # Variables de control UI (¡ESTAS SON LAS QUE FALTABAN!)
 if 'editando_idx' not in st.session_state:
