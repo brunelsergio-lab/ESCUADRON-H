@@ -304,7 +304,24 @@ from db_manager import (
     obtener_contacto, obtener_todos_contactos, guardar_contacto,
     registrar_movimiento, obtener_movimientos
 )
-st.set_page_config(page_title="Gestión de Parte Diario - Escuadrón H", layout="wide")
+st.set_page_config(
+    page_title="Gestión de Parte Diario - Escuadrón H",
+    page_icon="🟡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+
+def load_css(file_path):
+    """Carga estilos visuales desde un archivo CSS externo."""
+    try:
+        with open(file_path, "r", encoding="utf-8") as css_file:
+            st.markdown(f"<style>{css_file.read()}</style>", unsafe_allow_html=True)
+    except FileNotFoundError:
+        pass
+
+
+load_css(os.path.join(os.path.dirname(__file__), "assets", "styles.css"))
 
 actualizar_movimiento = getattr(_db_manager, "actualizar_movimiento", None)
 eliminar_movimiento = getattr(_db_manager, "eliminar_movimiento", None)
@@ -439,33 +456,52 @@ def requerir_login():
     total_usuarios = _db_manager.contar_usuarios()
 
     if total_usuarios == 0:
-        st.markdown("## Configuracion inicial de seguridad")
-        st.info("Crea tu usuario administrador. Despues de esto, nadie podra ingresar sin usuario y contrasena.")
-        with st.form("crear_admin_inicial"):
-            usuario = st.text_input("Usuario administrador", value="admin")
-            password = st.text_input("Contrasena", type="password")
-            password2 = st.text_input("Repetir contrasena", type="password")
-            crear = st.form_submit_button("Crear administrador", type="primary", use_container_width=True)
+        col_l, col_c, col_r = st.columns([1, 1.25, 1])
+        with col_c:
+            if os.path.exists("logo.png"):
+                st.image("logo.png", use_container_width=True)
+            st.markdown("""
+            <div class="login-hero">
+                <span class="login-badge">Configuración inicial</span>
+                <h1 class="login-title">Escuadrón H</h1>
+                <p class="login-subtitle">Crea el primer usuario administrador para proteger la plataforma.</p>
+            </div>
+            <div class="login-card-note">Después de crear el administrador, nadie podrá ingresar sin usuario y contraseña.</div>
+            """, unsafe_allow_html=True)
+            with st.form("crear_admin_inicial"):
+                usuario = st.text_input("Usuario administrador", value="admin")
+                password = st.text_input("Contraseña", type="password")
+                password2 = st.text_input("Repetir contraseña", type="password")
+                crear = st.form_submit_button("Crear administrador", type="primary", use_container_width=True)
         if crear:
             if not usuario.strip() or not password:
-                st.error("Completa usuario y contrasena.")
+                st.error("Completa usuario y contraseña.")
             elif password != password2:
-                st.error("Las contrasenas no coinciden.")
+                st.error("Las contraseñas no coinciden.")
             elif len(password) < 6:
-                st.error("La contrasena debe tener al menos 6 caracteres.")
+                st.error("La contraseña debe tener al menos 6 caracteres.")
             else:
                 _db_manager.crear_usuario(usuario, password, rol="admin", activo=True)
-                st.success("Administrador creado. Inicia sesion para continuar.")
+                st.success("Administrador creado. Inicia sesión para continuar.")
                 st.rerun()
         st.stop()
 
     if not st.session_state.get("autenticado"):
-        st.markdown("## Acceso restringido")
-        st.caption('Escuadron H "Cabo Marcelo Godoy"')
-        with st.form("login_form"):
-            usuario = st.text_input("Usuario")
-            password = st.text_input("Contrasena", type="password")
-            entrar = st.form_submit_button("Ingresar", type="primary", use_container_width=True)
+        col_l, col_c, col_r = st.columns([1, 1.15, 1])
+        with col_c:
+            if os.path.exists("logo.png"):
+                st.image("logo.png", use_container_width=True)
+            st.markdown("""
+            <div class="login-hero">
+                <span class="login-badge">Acceso restringido</span>
+                <h1 class="login-title">Escuadrón H</h1>
+                <p class="login-subtitle">Sistema de control de parte diario, novedades y reportes.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            with st.form("login_form"):
+                usuario = st.text_input("Usuario")
+                password = st.text_input("Contraseña", type="password")
+                entrar = st.form_submit_button("Ingresar", type="primary", use_container_width=True)
         if entrar:
             user = _db_manager.autenticar_usuario(usuario, password)
             if user:
@@ -473,21 +509,28 @@ def requerir_login():
                 st.session_state.usuario_actual = user
                 st.rerun()
             else:
-                st.error("Usuario o contrasena incorrectos.")
+                st.error("Usuario o contraseña incorrectos.")
         st.stop()
 
     with st.sidebar:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", use_container_width=True)
         user = usuario_actual() or {}
-        st.caption(f"Usuario: {user.get('usuario', '-')}")
-        st.caption(f"Rol: {user.get('rol', '-')}")
-        if st.button("Cerrar sesion", use_container_width=True):
+        st.markdown(f"""
+        <div class="sidebar-card">
+            <span>Sesión activa</span>
+            <strong>{escape(str(user.get('usuario', '-')))}</strong>
+            <small>Rol: {escape(str(user.get('rol', '-')))}</small>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("Cerrar sesión", use_container_width=True):
             cerrar_sesion()
             st.rerun()
 
 
 def panel_admin_usuarios():
-    st.subheader("Administracion de usuarios")
-    st.caption("Crea usuarios para quienes puedan ingresar a la aplicacion.")
+    st.subheader("👥 Administración de usuarios")
+    st.caption("Crea y administra los usuarios autorizados para ingresar a la plataforma.")
 
     with st.form("crear_usuario_form"):
         c1, c2, c3 = st.columns([2, 2, 1])
@@ -545,94 +588,7 @@ def panel_admin_usuarios():
                     _db_manager.eliminar_usuario(user["id"])
                     st.rerun()
 
-# 🔹 1. CSS PARA ESPACIADO (PEGAR AQUI AL INICIO)
-st.markdown("""
-<style>
-    .main .block-container { padding-top: 2rem !important; padding-bottom: 3rem !important; }
-    [data-testid="stMetric"] { margin-bottom: 1rem !important; }
-    .row-widget.stHorizontal { margin-bottom: 2rem !important; }
-    .stDataFrame table th, .stDataFrame table td { padding: 0.7rem 0.9rem !important; font-size: 0.95rem !important; }
-    .stButton { margin-top: 1rem !important; margin-bottom: 1rem !important; }
-    hr { margin: 2rem 0 !important; border-color: #3a3f47 !important; }
-</style>
-""", unsafe_allow_html=True)
-# 🔹 CSS PARA ESPACIADO Y LEGIBILIDAD AL 100%
-st.markdown("""
-<style>
-    /* Espaciado general del contenedor principal */
-    .main .block-container {
-        padding-top: 2.5rem !important;
-        padding-bottom: 3rem !important;
-    }
-    /* Espacio entre métricas y secciones */
-    [data-testid="stMetric"] {
-        margin-bottom: 1.2rem !important;
-    }
-    /* Separación entre filas horizontales (las dos filas de métricas) */
-    .row-widget.stHorizontal {
-        margin-bottom: 1.8rem !important;
-    }
-    /* Tablas más legibles y menos apretadas */
-    .stDataFrame table th, .stDataFrame table td {
-        padding: 0.6rem 0.9rem !important;
-        min-width: 90px !important;
-        font-size: 0.95rem !important;
-    }
-    /* Botones con aire alrededor */
-    .stButton {
-        margin-top: 1.2rem !important;
-        margin-bottom: 1.2rem !important;
-    }
-    /* Líneas divisorias más visibles */
-    hr {
-        margin: 1.8rem 0 !important;
-        border-color: #3a3f47 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<style>
-@media (max-width: 720px) {
-    .main .block-container {
-        padding-top: 0.6rem !important;
-        padding-left: 0.55rem !important;
-        padding-right: 0.55rem !important;
-        padding-bottom: 2rem !important;
-    }
-    div[data-testid="stTabs"] > div[role="tablist"] {
-        gap: 0.35rem !important;
-        overflow-x: auto !important;
-        flex-wrap: nowrap !important;
-        padding-bottom: 0.35rem !important;
-    }
-    div[data-testid="stTabs"] button[role="tab"],
-    div[data-testid="stTabs"] button[data-baseweb="tab"] {
-        min-width: max-content !important;
-        padding: 0.62rem 0.85rem !important;
-        border-radius: 999px !important;
-        border: 1px solid rgba(143, 166, 80, 0.35) !important;
-        background: rgba(75, 83, 32, 0.22) !important;
-        font-size: 0.9rem !important;
-        font-weight: 800 !important;
-    }
-    div[data-testid="stTabs"] button[aria-selected="true"],
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
-        background: #4B5320 !important;
-        color: #FFFFFF !important;
-        border-color: #8FA650 !important;
-    }
-    hr {
-        margin: 0.85rem 0 !important;
-    }
-    .stButton {
-        margin-top: 0.55rem !important;
-        margin-bottom: 0.55rem !important;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
-
+# Estilos visuales cargados desde assets/styles.css
 # ==============================================================================
 # 1. CARGA DE DATOS
 # ==============================================================================
@@ -847,26 +803,7 @@ for aula in AULAS_UNICAS:
         if ubic in ubicacion_dist:
             ubicacion_dist[ubic].append(len(df[df['AULA'] == aula]))
 
-# 🔹 3. CSS Y RENDERIZADO (Métricas fijas arriba)
-st.markdown("""
-<style>
-    .sticky-bar { position: sticky !important; top: 0 !important; z-index: 999 !important; 
-                  background: #161B15 !important; padding: 10px 0 12px 0 !important; 
-                  border-bottom: 2px solid #C4A000 !important; margin-bottom: 15px !important; 
-                  box-shadow: 0 4px 8px rgba(0,0,0,0.6) !important; }
-    .header-title { text-align: center !important; font-size: 1.15rem !important; font-weight: 900 !important; 
-                    color: #FFFFFF !important; letter-spacing: 2.5px !important; margin-bottom: 8px !important; 
-                    text-transform: uppercase !important; text-shadow: 1px 1px 3px #000000 !important; }
-    [data-testid="stMetric"] { padding: 2px 4px !important; }
-    [data-testid="stMetricValue"] { font-size: 1.05rem !important; font-weight: 700 !important; color: #FFFFFF !important; }
-    [data-testid="stMetricLabel"] { font-size: 0.65rem !important; color: #A8B099 !important; text-transform: uppercase !important; letter-spacing: 1px !important; }
-    [data-testid="stMetricDelta"] { font-size: 0.65rem !important; }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown('<div class="header-title">ESCUADRÓN H "CABO MARCELO GODOY"</div>', unsafe_allow_html=True)
-
-
+# Panel institucional y métricas principales
 en_aula_count = sum(ubicacion_dist.get('EN AULA', []))
 urf_count = sum(ubicacion_dist.get('URF', []))
 edfis_key = next((k for k in ubicacion_dist.keys() if 'FISICA' in k.upper() or 'FÍSICA' in k.upper()), 'EDUCACIÓN FÍSICA')
@@ -934,250 +871,6 @@ def mostrar_monitor_novedades():
     """, unsafe_allow_html=True)
 
 st.markdown(f"""
-<style>
-    .header-title {{
-        display: none !important;
-    }}
-    .rrhh-panel {{
-        background: linear-gradient(135deg, #2f3717 0%, #4B5320 48%, #111827 100%);
-        border: 1px solid rgba(166, 160, 120, 0.45);
-        border-radius: 8px;
-        padding: 1rem;
-        margin: 0.25rem 0 1rem 0;
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
-    }}
-    .rrhh-head {{
-        display: flex;
-        justify-content: space-between;
-        gap: 1rem;
-        align-items: flex-start;
-        margin-bottom: 0.85rem;
-    }}
-    .rrhh-brand {{
-        display: flex;
-        gap: 0.75rem;
-        align-items: center;
-    }}
-    .rrhh-emblem {{
-        width: 48px;
-        height: 48px;
-        border-radius: 8px;
-        display: grid;
-        place-items: center;
-        background: rgba(232, 234, 215, 0.14);
-        border: 1px solid rgba(232, 234, 215, 0.28);
-        color: #F9FAFB;
-        font-weight: 900;
-        letter-spacing: 0.04em;
-    }}
-    .rrhh-eyebrow {{
-        margin: 0 0 0.2rem 0;
-        color: #D8DEC2;
-        font-size: 0.72rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        font-weight: 800;
-    }}
-    .rrhh-title {{
-        margin: 0;
-        color: #FFFFFF;
-        font-size: 1.35rem;
-        line-height: 1.15;
-        font-weight: 900;
-    }}
-    .rrhh-title-short {{
-        display: none;
-    }}
-    .rrhh-subtitle {{
-        margin: 0.28rem 0 0 0;
-        color: #E8EAD7;
-        font-size: 0.9rem;
-    }}
-    .rrhh-status-box {{
-        display: flex;
-        flex-direction: column;
-        gap: 0.35rem;
-        align-items: flex-end;
-    }}
-    .rrhh-date, .rrhh-live {{
-        border: 1px solid rgba(232, 234, 215, 0.34);
-        border-radius: 999px;
-        color: #F9FAFB;
-        background: rgba(17, 24, 39, 0.42);
-        padding: 0.34rem 0.7rem;
-        font-size: 0.8rem;
-        white-space: nowrap;
-        font-weight: 700;
-    }}
-    .rrhh-live {{
-        color: #E8EAD7;
-    }}
-    .rrhh-access {{
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0.55rem;
-        margin-bottom: 0.8rem;
-    }}
-    .rrhh-access-card {{
-        border: 1px solid rgba(232, 234, 215, 0.22);
-        background: rgba(17, 24, 39, 0.34);
-        border-radius: 8px;
-        padding: 0.65rem 0.75rem;
-        min-height: 68px;
-    }}
-    .rrhh-access-card span {{
-        display: block;
-        color: #D8DEC2;
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        font-weight: 800;
-    }}
-    .rrhh-access-card strong {{
-        display: block;
-        color: #FFFFFF;
-        margin-top: 0.25rem;
-        font-size: 0.95rem;
-    }}
-    .nov-monitor {{
-        border: 1px solid rgba(148, 163, 184, 0.22);
-        background: rgba(15, 23, 42, 0.72);
-        border-radius: 8px;
-        padding: 0.75rem;
-        margin: 0 0 0.85rem 0;
-    }}
-    .nov-monitor-head {{
-        display: flex;
-        justify-content: space-between;
-        gap: 0.75rem;
-        align-items: center;
-        margin-bottom: 0.55rem;
-    }}
-    .nov-monitor-title {{
-        color: #F9FAFB;
-        font-size: 0.84rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-    }}
-    .nov-monitor-sub {{
-        color: #94A3B8;
-        font-size: 0.76rem;
-        white-space: nowrap;
-    }}
-    .nov-monitor-grid {{
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-        gap: 0.5rem;
-    }}
-    .nov-card {{
-        border: 1px solid rgba(148, 163, 184, 0.18);
-        background: rgba(255, 255, 255, 0.045);
-        border-radius: 8px;
-        padding: 0.65rem 0.75rem;
-        min-height: 74px;
-    }}
-    .nov-card > div {{
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-    }}
-    .nov-card span {{
-        color: #CBD5E1;
-        font-size: 0.74rem;
-        font-weight: 700;
-        line-height: 1.15;
-        text-transform: uppercase;
-    }}
-    .nov-card strong {{
-        color: #FFFFFF;
-        font-size: 1.5rem;
-        line-height: 1;
-    }}
-    .nov-card p {{
-        margin: 0.45rem 0 0 0;
-        color: #94A3B8;
-        font-size: 0.78rem;
-        line-height: 1.25;
-    }}
-    .nov-card b {{
-        color: #E5E7EB;
-    }}
-    .rrhh-kpi-grid {{
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-        gap: 0.65rem;
-    }}
-    .rrhh-kpi {{
-        border: 1px solid rgba(232, 234, 215, 0.16);
-        background: rgba(255, 255, 255, 0.045);
-        border-radius: 8px;
-        padding: 0.75rem;
-        min-height: 96px;
-    }}
-    .rrhh-kpi span {{
-        display: block;
-        color: #D8DEC2;
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        font-weight: 800;
-    }}
-    .rrhh-kpi strong {{
-        display: block;
-        color: #F9FAFB;
-        font-size: 1.7rem;
-        line-height: 1.1;
-        margin-top: 0.35rem;
-    }}
-    .rrhh-kpi small {{
-        display: block;
-        color: #CBD5E1;
-        font-size: 0.78rem;
-        margin-top: 0.3rem;
-    }}
-    .rrhh-kpi-ok {{ border-left: 3px solid #8FA650; }}
-    .rrhh-kpi-warn {{ border-left: 3px solid #D8B55A; }}
-    .rrhh-kpi-alert {{ border-left: 3px solid #C05646; }}
-    @media (max-width: 720px) {{
-        .rrhh-panel {{
-            padding: 0.55rem 0.6rem;
-            margin: 0 0 0.55rem 0;
-            box-shadow: none;
-            background: linear-gradient(135deg, #344018 0%, #111827 100%);
-        }}
-        .rrhh-head {{
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.5rem;
-            margin-bottom: 0.45rem;
-        }}
-        .rrhh-brand {{ gap: 0.45rem; min-width: 0; }}
-        .rrhh-emblem {{ width: 32px; height: 32px; border-radius: 7px; font-size: 0.78rem; flex: 0 0 auto; }}
-        .rrhh-eyebrow {{ display: none; }}
-        .rrhh-title {{ font-size: 1rem; line-height: 1.1; white-space: nowrap; overflow: visible; max-width: none; }}
-        .rrhh-title-full {{ display: none; }}
-        .rrhh-title-short {{ display: inline; }}
-        .rrhh-subtitle {{ display: none; }}
-        .rrhh-status-box {{ align-items: flex-end; margin-top: 0; gap: 0.25rem; }}
-        .rrhh-live {{ display: none; }}
-        .rrhh-date {{ padding: 0.24rem 0.48rem; font-size: 0.7rem; }}
-        .rrhh-access {{ display: none; }}
-        .rrhh-kpi-grid {{ grid-template-columns: repeat(4, minmax(68px, 1fr)); gap: 0.35rem; }}
-        .rrhh-kpi {{ min-height: 58px; padding: 0.45rem; border-radius: 7px; }}
-        .rrhh-kpi span {{ font-size: 0.58rem; letter-spacing: 0.03em; }}
-        .rrhh-kpi strong {{ font-size: 1.08rem; margin-top: 0.15rem; }}
-        .rrhh-kpi small {{ display: none; }}
-        .nov-monitor {{ padding: 0.55rem; position: sticky; top: 0.2rem; z-index: 10; }}
-        .nov-monitor-head {{ display: block; margin-bottom: 0.4rem; }}
-        .nov-monitor-sub {{ display: block; margin-top: 0.15rem; }}
-        .nov-monitor-grid {{ display: flex; overflow-x: auto; gap: 0.4rem; padding-bottom: 0.1rem; }}
-        .nov-card {{ min-width: 210px; flex: 0 0 auto; min-height: 62px; padding: 0.52rem; }}
-        .nov-card strong {{ font-size: 1.2rem; }}
-    }}
-</style>
 <section class="rrhh-panel">
     <div class="rrhh-head">
         <div class="rrhh-brand">
@@ -1202,8 +895,6 @@ st.markdown(f"""
 </section>
 """, unsafe_allow_html=True)
 
-st.markdown('</div>', unsafe_allow_html=True)
-
 st.divider()
 # 🔹 BOTÓN OCULTO PARA FORZAR SINCRONIZACIÓN (Por si las dudas)
 if st.button("🔄 Sincronizar Datos", key="sync_btn", help="Fuerza la recarga desde base de datos"):
@@ -1227,16 +918,16 @@ if st.button("🚨 RESETEAR ASISTENCIA DEL DÍA", key="reset_asistencia", help="
 # ==============================================================================
 # 4. PESTAÑAS
 # ==============================================================================
-tab_labels = ["Dia y horarios", "Novedades", "Ubicacion", "Racionamiento", "Legajos y contactos", "Reportes"]
+tab_labels = ["📅 Día y horarios", "📝 Novedades", "📍 Ubicación", "🍽️ Racionamiento", "📇 Legajos y contactos", "📊 Reportes"]
 if es_admin():
-    tab_labels.append("Usuarios")
+    tab_labels.append("👥 Usuarios")
 tabs_creadas = st.tabs(tab_labels)
 tab_config, tab_nov, tab_seg, tab_alm, tab_plan, tab_res = tabs_creadas[:6]
 tab_usuarios = tabs_creadas[6] if es_admin() else None
 
 # --- TAB: CONFIGURACIÓN ---
 with tab_config:
-    st.subheader("Configuración del Día y Horarios")
+    st.subheader("📅 Configuración del día y horarios")
     fecha_anterior = st.session_state.fecha_reporte
     st.session_state.fecha_reporte = st.date_input("Fecha del Reporte", st.session_state.fecha_reporte)
     dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
@@ -1282,7 +973,7 @@ with tab_nov:
         st.warning("⚠️ La novedad que editabas cambió. Se reinició el formulario.")
         st.rerun()
 
-    st.subheader("✏️ Editando Novedad" if es_edicion else "➕ Registrar Novedad")
+    st.subheader("✏️ Editando novedad" if es_edicion else "➕ Registrar novedad")
 
     data = None
     if es_edicion:
