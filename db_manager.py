@@ -163,6 +163,11 @@ def _init_sqlite(conn):
         creado_en TEXT NOT NULL
     )""")
 
+    c.execute("""CREATE TABLE IF NOT EXISTS app_config (
+        clave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL
+    )""")
+
 
 def _init_postgres(conn):
     cur = conn.cursor()
@@ -272,6 +277,11 @@ def _init_postgres(conn):
         rol TEXT NOT NULL DEFAULT 'usuario',
         activo INTEGER NOT NULL DEFAULT 1,
         creado_en TEXT NOT NULL
+    )""")
+
+    cur.execute("""CREATE TABLE IF NOT EXISTS app_config (
+        clave TEXT PRIMARY KEY,
+        valor TEXT NOT NULL
     )""")
 
 
@@ -496,6 +506,26 @@ def obtener_historial_almuerzo(fecha_desde=None, fecha_hasta=None):
         else:
             cur = run(conn, "SELECT * FROM almuerzo_historial ORDER BY fecha DESC, fecha_hora DESC, id DESC")
         return fetch_all(cur)
+
+
+# --- CONFIG APP ---
+def obtener_config(clave, default=None):
+    with get_db() as conn:
+        cur = run(conn, "SELECT valor FROM app_config WHERE clave=?", (clave,))
+        row = cur.fetchone()
+        if not row:
+            return default
+        return row["valor"] if isinstance(row, dict) else row[0]
+
+
+def guardar_config(clave, valor):
+    with get_db() as conn:
+        if is_postgres():
+            run(conn, """INSERT INTO app_config (clave, valor) VALUES (?, ?)
+                ON CONFLICT (clave) DO UPDATE SET valor=EXCLUDED.valor""", (clave, str(valor)))
+        else:
+            run(conn, "INSERT OR REPLACE INTO app_config (clave, valor) VALUES (?, ?)", (clave, str(valor)))
+        conn.commit()
 
 
 # --- HORARIOS ---

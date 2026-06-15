@@ -406,6 +406,7 @@ from db_manager import (
     obtener_estado_aulas, guardar_estado_aula,
     obtener_almuerzo, agregar_almuerzo, quitar_almuerzo,
     obtener_horarios, guardar_horarios, obtener_horarios_dia, guardar_horarios_dia,
+    obtener_config, guardar_config,
     obtener_asistencia, actualizar_asistencia,
     obtener_contacto, obtener_todos_contactos, guardar_contacto,
     registrar_movimiento, obtener_movimientos
@@ -763,10 +764,20 @@ TOTAL_ESCUADRON = len(df)
 AULAS_UNICAS = sorted(df['AULA'].unique())
 
 # Fecha del reporte
-if 'fecha_reporte' not in st.session_state:
-    st.session_state.fecha_reporte = ahora_local().date()
-FECHA_PARTE_STR = st.session_state.fecha_reporte.isoformat()
 FECHA_STR = ahora_local().date().isoformat()
+if 'fecha_reporte' not in st.session_state:
+    fecha_guardada = obtener_config("fecha_reporte", None)
+    fecha_reporte_inicial = ahora_local().date()
+    if fecha_guardada:
+        try:
+            fecha_reporte_inicial = datetime.strptime(fecha_guardada, "%Y-%m-%d").date()
+        except ValueError:
+            fecha_reporte_inicial = ahora_local().date()
+    if fecha_reporte_inicial < ahora_local().date():
+        fecha_reporte_inicial = ahora_local().date()
+        guardar_config("fecha_reporte", fecha_reporte_inicial.isoformat())
+    st.session_state.fecha_reporte = fecha_reporte_inicial
+FECHA_PARTE_STR = st.session_state.fecha_reporte.isoformat()
 
 # Novedades
 if 'novedades_lista' not in st.session_state:
@@ -1079,11 +1090,21 @@ tab_usuarios = tabs_creadas[6] if es_admin() else None
 # --- TAB: CONFIGURACIÓN ---
 with tab_config:
     st.subheader("📅 Configuración del día y horarios")
-    fecha_anterior = st.session_state.fecha_reporte
-    st.session_state.fecha_reporte = st.date_input("Fecha del Reporte", st.session_state.fecha_reporte, help="Esta fecha solo cambia el parte y los reportes. Las novedades y el presentismo operativo trabajan con el dia actual.")
-    dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
-    if fecha_anterior != st.session_state.fecha_reporte:
-        db_hor = obtener_horarios_dia(dia_reporte) or obtener_horarios()
+    fecha_actual_reporte = st.session_state.fecha_reporte
+    fecha_reporte_nueva = st.date_input(
+        "Fecha del Reporte",
+        fecha_actual_reporte,
+        help="Selecciona la fecha y presiona Guardar fecha del reporte para dejarla fija."
+    )
+    col_fecha_guardar, col_fecha_info = st.columns([1, 2])
+    with col_fecha_guardar:
+        guardar_fecha_btn = st.button("Guardar fecha del reporte", type="primary", use_container_width=True)
+    with col_fecha_info:
+        st.caption(f"Fecha guardada actual: {fecha_actual_reporte.strftime('%d/%m/%Y')}")
+    if guardar_fecha_btn:
+        st.session_state.fecha_reporte = fecha_reporte_nueva
+        guardar_config("fecha_reporte", fecha_reporte_nueva.isoformat())
+        db_hor = obtener_horarios_dia(DIAS_SEMANA[fecha_reporte_nueva.weekday()]) or obtener_horarios()
         st.session_state.horarios_config = {}
         for aula in AULAS_UNICAS:
             st.session_state.horarios_config[aula] = db_hor.get(normalizar_aula(aula), db_hor.get(aula, {
@@ -1091,8 +1112,10 @@ with tab_config:
             }))
         st.session_state.pop('estado_aulas', None)
         st.session_state.pop('estado_aulas_fecha', None)
+        st.success("Fecha del reporte guardada")
         st.rerun()
-    st.caption(f"Horarios cargados para: {dia_reporte}. Podés editarlos y guardarlos para ese día.")
+    dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
+    st.caption(f"Horarios cargados para: {dia_reporte}. Podes editarlos y guardarlos para ese dia.")
     st.divider()
     for aula in AULAS_UNICAS:
         cfg = st.session_state.horarios_config[aula]
