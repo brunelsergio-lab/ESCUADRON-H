@@ -169,7 +169,7 @@ def generar_minuta_informativa():
         if estado in {"PRESENTE", "PRESENTE EN ESCUADRÓN"}
     }
 
-    total_ausentes_minuta = (ausentes_novedad | ausentes_manuales) - presentes_instituto_manuales
+    total_ausentes_minuta = ausentes_novedad | (ausentes_manuales - presentes_instituto_manuales)
 
     df_presentes_primera_minuta = df[
         (~df['ORDEN_LIMP'].isin(total_ausentes_minuta)) &
@@ -512,6 +512,14 @@ if 'sel_nov' not in st.session_state:
 def log_movimiento(modulo, accion, orden=None, nombre=None, aula=None, detalle=""):
     registrar_movimiento(FECHA_STR, modulo, accion, orden, nombre, aula, detalle)
 
+
+def estado_asistencia_por_ambito(ambito):
+    if ambito == "AUSENTE":
+        return "AUSENTE"
+    if ambito == "INSTITUTO":
+        return "PRESENTE EN INSTITUTO"
+    return "PRESENTE EN ESCUADR?N"
+
 def parsear_detalle_movimiento(detalle):
     datos = {"Motivo": "", "Presencia": "", "Desde": "", "Hasta": "", "Observación": detalle or ""}
     partes = [p.strip() for p in str(detalle or "").split("|")]
@@ -578,7 +586,7 @@ presentes_escuadron_manuales = {
     if estado in {"PRESENTE", "PRESENTE EN ESCUADRÓN"}
 }
 
-total_ausentes = (ausentes_fijos | ausentes_manuales) - presentes_instituto_manuales
+total_ausentes = ausentes_fijos | (ausentes_manuales - presentes_instituto_manuales)
 
 en_instituto = 0
 fuera_por_aula = 0
@@ -1207,6 +1215,8 @@ with tab_nov:
                 if st.button("💾 Guardar Cambios", type="primary", use_container_width=True, key="btn_save_edit"):
                     nov_id = st.session_state.novedades_lista[edit_idx]['id']
                     actualizar_novedad(nov_id, {"estado": est, "detalle": det.upper(), "fecha_ini": fi, "fecha_fin": ff, "ambito": ambito})
+                    actualizar_asistencia(FECHA_STR, data.get("orden"), estado_asistencia_por_ambito(ambito))
+                    st.session_state.estado_asistencia[data.get("orden")] = estado_asistencia_por_ambito(ambito)
                     log_movimiento("Novedades", "EDITAR NOVEDAD", data.get("orden"), data.get("nombre"), data.get("aula"), f"{est} | {AMBITOS_NOVEDAD.get(ambito, ambito)} | {fi} a {ff} | {det.upper()}")
                     st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
                     st.session_state.editando_idx = None
@@ -1222,6 +1232,8 @@ with tab_nov:
                         "aula": data["AULA"], "estado": est, "detalle": det.upper(),
                         "fecha_ini": fi, "fecha_fin": ff, "ambito": ambito
                     })
+                    actualizar_asistencia(FECHA_STR, int(data["ORDEN_LIMP"]), estado_asistencia_por_ambito(ambito))
+                    st.session_state.estado_asistencia[int(data["ORDEN_LIMP"])] = estado_asistencia_por_ambito(ambito)
                     log_movimiento("Novedades", "ALTA NOVEDAD", int(data["ORDEN_LIMP"]), nombre_asp, data["AULA"], f"{est} | {AMBITOS_NOVEDAD.get(ambito, ambito)} | {fi} a {ff} | {det.upper()}")
                     st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
                     st.session_state.sel_nov = None
@@ -1582,7 +1594,7 @@ with tab_res:
         orden for orden, estado in st.session_state.estado_asistencia.items()
         if estado in {"PRESENTE", "PRESENTE EN INSTITUTO", "PRESENTE EN ESCUADRÓN"}
     }
-    total_ausentes_resumen = (ausentes_resumen | ausentes_manuales_resumen) - presentes_manuales_resumen
+    total_ausentes_resumen = ausentes_resumen | (ausentes_manuales_resumen - presentes_manuales_resumen)
 
     # ==========================================================
     # RESUMEN POR AULA
