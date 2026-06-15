@@ -143,6 +143,59 @@ def hora_ingreso_aula(aula):
 def aula_ingresa_primera_obligacion(aula, ahora=None, fecha_objetivo=None):
     return hora_ingreso_aula(aula) == "06:00"
 
+
+def hora_a_minutos(valor, defecto="00:00"):
+    hora = normalizar_hora_ingreso(valor or defecto)
+    try:
+        hh, mm = hora.split(":", 1)
+        return int(hh) * 60 + int(mm)
+    except Exception:
+        hh, mm = defecto.split(":", 1)
+        return int(hh) * 60 + int(mm)
+
+
+def minuto_operativo_reporte():
+    fecha = st.session_state.get("fecha_reporte", ahora_local().date())
+    hoy = ahora_local().date()
+    if fecha < hoy:
+        return 23 * 60 + 59
+    if fecha > hoy:
+        return 0
+    ahora = ahora_local()
+    return ahora.hour * 60 + ahora.minute
+
+
+def estado_programado_aula(aula, prefijo, cfg_estado=None):
+    horarios = st.session_state.get("horarios_config", {})
+    hor = horarios.get(aula) or horarios.get(normalizar_aula(aula)) or {}
+    ent = hora_a_minutos(hor.get(f"ent_{prefijo}", "06:00"), "06:00" if prefijo == "m" else "13:00")
+    sal = hora_a_minutos(hor.get(f"sal_{prefijo}", "12:00"), "12:00" if prefijo == "m" else "19:00")
+    actual = minuto_operativo_reporte()
+    if actual < ent or actual >= sal:
+        return "FUERA", "FRANCO"
+    if prefijo == "m" and normalizar_hora_ingreso(hor.get("ent_m", "06:00")) == "06:00" and actual < 7 * 60:
+        return "EN INSTITUTO", "FORMACION"
+    ubic_key = f"ubicacion_{prefijo}"
+    previa = (cfg_estado or {}).get(ubic_key, "EN AULA")
+    if previa in {"FRANCO", "FORMACION"}:
+        previa = "EN AULA"
+    return "EN INSTITUTO", previa or "EN AULA"
+
+
+def sincronizar_ubicacion_con_horarios():
+    for aula, cfg in st.session_state.get("estado_aulas", {}).items():
+        for prefijo in ("m", "t"):
+            estado_key = f"estado_{prefijo}"
+            ubic_key = f"ubicacion_{prefijo}"
+            salida_key = f"salida_{prefijo}"
+            estado_auto, ubic_auto = estado_programado_aula(aula, prefijo, cfg)
+            cfg[estado_key] = estado_auto
+            cfg[ubic_key] = ubic_auto
+            if estado_auto == "FUERA":
+                cfg[salida_key] = "FRANCO"
+            elif cfg.get(salida_key) == "FRANCO":
+                cfg[salida_key] = None
+
 def numero_letras(n):
     mapa = {
         0: "CERO", 1: "UN", 2: "DOS", 3: "TRES", 4: "CUATRO", 5: "CINCO",
@@ -228,8 +281,7 @@ def generar_minuta_informativa():
             df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
             df['ORDEN_LIMP'].isin(presentes_escuadron_manuales) |
             ((~df['ORDEN_LIMP'].isin(ambito_minuta.keys())) &
-             (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)) &
-             (df['AULA'].map(lambda aula: st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO')) == 'EN INSTITUTO'))
+             (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)))
         )
     ]
     df_presentes_primera_minuta = df_presentes_escuadron_minuta[
@@ -720,25 +772,6 @@ FECHA_STR = ahora_local().date().isoformat()
 if 'novedades_lista' not in st.session_state:
     st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
 
-# Estado de aulas
-if 'estado_aulas' not in st.session_state:
-    db_estado = obtener_estado_aulas(FECHA_STR)
-    st.session_state.estado_aulas = {}
-    for aula in AULAS_UNICAS:
-        aula_data = db_estado.get(aula, {})
-        st.session_state.estado_aulas[aula] = {
-            "estado_m": aula_data.get("estado_m", "EN INSTITUTO"),
-            "estado_t": aula_data.get("estado_t", "EN INSTITUTO"),
-            "salida_m": aula_data.get("salida_m"),
-            "salida_t": aula_data.get("salida_t"),
-            "ubicacion_m": aula_data.get("ubicacion_m", "EN AULA"),  # 👈 NUEVO
-            "ubicacion_t": aula_data.get("ubicacion_t", "EN AULA")   # 👈 NUEVO
-        }
-
-# Lista de almuerzo
-if 'lista_almuerzo' not in st.session_state:
-    st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
-
 # Horarios config
 if 'horarios_config' not in st.session_state:
     dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
@@ -748,6 +781,27 @@ if 'horarios_config' not in st.session_state:
         st.session_state.horarios_config[aula] = db_hor.get(normalizar_aula(aula), db_hor.get(aula, {
             "ent_m": "06:00", "sal_m": "12:00", "ent_t": "13:00", "sal_t": "19:00"
         }))
+
+# Estado de aulas sincronizado con horarios del reporte
+if 'estado_aulas' not in st.session_state or st.session_state.get('estado_aulas_fecha') != FECHA_PARTE_STR:
+    db_estado = obtener_estado_aulas(FECHA_PARTE_STR)
+    st.session_state.estado_aulas = {}
+    st.session_state.estado_aulas_fecha = FECHA_PARTE_STR
+    for aula in AULAS_UNICAS:
+        aula_data = db_estado.get(aula, {})
+        st.session_state.estado_aulas[aula] = {
+            "estado_m": aula_data.get("estado_m", "EN INSTITUTO"),
+            "estado_t": aula_data.get("estado_t", "EN INSTITUTO"),
+            "salida_m": aula_data.get("salida_m"),
+            "salida_t": aula_data.get("salida_t"),
+            "ubicacion_m": aula_data.get("ubicacion_m", "EN AULA"),
+            "ubicacion_t": aula_data.get("ubicacion_t", "EN AULA")
+        }
+sincronizar_ubicacion_con_horarios()
+
+# Lista de almuerzo
+if 'lista_almuerzo' not in st.session_state:
+    st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
 
 # Asistencia diaria
 if 'estado_asistencia' not in st.session_state:
@@ -867,18 +921,32 @@ df_presentes_escuadron_base = df[
          (df['AULA'].map(lambda aula: st.session_state.estado_aulas.get(aula, {}).get('estado_m', 'EN INSTITUTO')) == 'EN INSTITUTO'))
     )
 ]
-df_presentes_primera = df_presentes_escuadron_base[
-    df_presentes_escuadron_base['AULA'].map(aula_ingresa_primera_obligacion)
+df_formacion_0600_base = df[
+    (~df['ORDEN_LIMP'].isin(total_ausentes)) &
+    (
+        df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
+        df['ORDEN_LIMP'].isin(presentes_escuadron_manuales) |
+        ((~df['ORDEN_LIMP'].isin(ambito_por_orden.keys())) &
+         (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)))
+    )
+]
+df_presentes_primera = df_formacion_0600_base[
+    df_formacion_0600_base['AULA'].map(aula_ingresa_primera_obligacion)
 ]
 primera_total = len(df_presentes_primera)
 primera_tercer_anio = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_tercer_anio)])
 primera_aop = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_aop)])
 
-ubicacion_dist = {"EN AULA": [], "URF": [], "EDUCACIÓN FÍSICA": [], "EN INSTITUTO": []}
+ubicacion_dist = {"EN AULA": [], "URF": [], "EDUCACION FISICA": [], "EN INSTITUTO": [], "FORMACION": []}
 for aula in AULAS_UNICAS:
     cfg = st.session_state.estado_aulas[aula]
     if cfg['estado_m'] == 'EN INSTITUTO':
         ubic = cfg.get('ubicacion_m', 'EN AULA')
+        if ubic == "FORMACION":
+            ubic = "EN INSTITUTO"
+        ubic_norm = str(ubic).upper().replace(chr(205), "I").replace(chr(211), "O").replace("?", "I")
+        if "FISICA" in ubic_norm:
+            ubic = "EDUCACION FISICA"
         if ubic in ubicacion_dist:
             ubicacion_dist[ubic].append(len(df[df['AULA'] == aula]))
 
@@ -1021,6 +1089,8 @@ with tab_config:
             st.session_state.horarios_config[aula] = db_hor.get(normalizar_aula(aula), db_hor.get(aula, {
                 "ent_m": "06:00", "sal_m": "12:00", "ent_t": "13:00", "sal_t": "19:00"
             }))
+        st.session_state.pop('estado_aulas', None)
+        st.session_state.pop('estado_aulas_fecha', None)
         st.rerun()
     st.caption(f"Horarios cargados para: {dia_reporte}. Podés editarlos y guardarlos para ese día.")
     st.divider()
@@ -1323,7 +1393,9 @@ with tab_seg:
             )
 
             with st.expander(f"Gestionar {aula}", expanded=False):
-                if is_inside:
+                if is_inside and ubicacion_actual == "FORMACION":
+                    st.info("Presentacion/formacion en instituto. Las actividades manuales se habilitan desde las 07:00.")
+                elif is_inside:
                     loc_cols = st.columns(4)
                     for i, (label, value) in enumerate(locations):
                         with loc_cols[i]:
@@ -1331,21 +1403,24 @@ with tab_seg:
                             btn_type = "primary" if is_active else "secondary"
                             if st.button(label, key=f"loc_{prefijo}_{aula}_{i}", type=btn_type, use_container_width=True):
                                 st.session_state.estado_aulas[aula][ubic_key] = value
-                                guardar_estado_aula(FECHA_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
+                                guardar_estado_aula(FECHA_PARTE_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
                                 st.rerun()
 
                     if st.button("Retirar aula", key=f"out_{prefijo}_{aula}", use_container_width=True):
                         st.session_state.estado_aulas[aula][estado_key] = 'FUERA'
-                        st.session_state.estado_aulas[aula][salida_key] = datetime.now().strftime("%H:%M")
-                        guardar_estado_aula(FECHA_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
+                        st.session_state.estado_aulas[aula][salida_key] = ahora_local().strftime("%H:%M")
+                        guardar_estado_aula(FECHA_PARTE_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
                         st.rerun()
                 else:
-                    st.warning("Aula fuera del instituto. Reingresar para habilitar ubicación.")
-                    if st.button("Reingresar aula", key=f"in_{prefijo}_{aula}", use_container_width=True):
-                        st.session_state.estado_aulas[aula][estado_key] = 'EN INSTITUTO'
-                        st.session_state.estado_aulas[aula][salida_key] = None
-                        guardar_estado_aula(FECHA_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
-                        st.rerun()
+                    if cfg.get(salida_key) == "FRANCO":
+                        st.info("FRANCO por horario cargado en Dias y horarios. Se habilita automaticamente al llegar el ingreso.")
+                    else:
+                        st.warning("Aula fuera del instituto. Reingresar para habilitar ubicacion.")
+                        if st.button("Reingresar aula", key=f"in_{prefijo}_{aula}", use_container_width=True):
+                            st.session_state.estado_aulas[aula][estado_key] = 'EN INSTITUTO'
+                            st.session_state.estado_aulas[aula][salida_key] = None
+                            guardar_estado_aula(FECHA_PARTE_STR, aula, cfg['estado_m'], cfg['estado_t'], cfg.get('salida_m'), cfg.get('salida_t'), cfg.get('ubicacion_m', 'EN AULA'), cfg.get('ubicacion_t', 'EN AULA'))
+                            st.rerun()
 
 # --- TAB: ALMUERZO ---
 with tab_alm:
