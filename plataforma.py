@@ -1724,8 +1724,6 @@ with tab_res:
         on_click="ignore",
         use_container_width=True
     )
-    if st.button("Forzar descarga de minuta", use_container_width=True, key="forzar_descarga_minuta"):
-        descargar_archivo_auto(minuta_bytes, nombre_minuta, "text/plain;charset=utf-8")
 
 
     st.divider()
