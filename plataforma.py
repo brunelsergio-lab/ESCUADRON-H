@@ -4,6 +4,7 @@ import pandas as pd
 import openpyxl
 from openpyxl.styles import Font
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import os
 from io import BytesIO
 import base64
@@ -29,6 +30,11 @@ def live_search_input(label, placeholder, key):
     return value
 
 APP_LOGO_FILE = "logo nuevo.jpg"
+APP_TZ = ZoneInfo("America/Argentina/Buenos_Aires")
+
+def ahora_local():
+    return datetime.now(APP_TZ)
+
 
 def excel_bytes(wb):
     buffer = BytesIO()
@@ -128,10 +134,25 @@ def normalizar_hora_ingreso(valor):
     return texto
 
 
-def aula_ingresa_primera_obligacion(aula):
+def hora_ingreso_aula(aula):
     horarios = st.session_state.get("horarios_config", {})
     cfg = horarios.get(aula) or horarios.get(normalizar_aula(aula)) or {}
-    return normalizar_hora_ingreso(cfg.get("ent_m", "06:00")) == "06:00"
+    return normalizar_hora_ingreso(cfg.get("ent_m", "06:00"))
+
+
+def ingreso_aula_cumplido(aula, ahora=None, fecha_objetivo=None):
+    hora = hora_ingreso_aula(aula)
+    ahora = ahora or ahora_local()
+    fecha_objetivo = fecha_objetivo or st.session_state.get("fecha_reporte", ahora.date())
+    if fecha_objetivo > ahora.date():
+        return False
+    if fecha_objetivo < ahora.date():
+        return True
+    try:
+        hora_obj = datetime.strptime(hora, "%H:%M").time()
+    except ValueError:
+        hora_obj = datetime.strptime("06:00", "%H:%M").time()
+    return ahora.time() >= hora_obj
 
 def numero_letras(n):
     mapa = {
@@ -223,7 +244,7 @@ def generar_minuta_informativa():
         )
     ]
     df_presentes_primera_minuta = df_presentes_escuadron_minuta[
-        df_presentes_escuadron_minuta['AULA'].map(aula_ingresa_primera_obligacion)
+        df_presentes_escuadron_minuta['AULA'].map(ingreso_aula_cumplido)
     ]
 
     df_tercero = df[df['GRADO'].map(es_tercer_anio)]
@@ -702,9 +723,17 @@ AULAS_UNICAS = sorted(df['AULA'].unique())
 
 # Fecha del reporte
 if 'fecha_reporte' not in st.session_state:
-    st.session_state.fecha_reporte = datetime.now().date()
+    st.session_state.fecha_reporte = ahora_local().date()
 FECHA_PARTE_STR = st.session_state.fecha_reporte.isoformat()
-FECHA_STR = datetime.now().date().isoformat()
+FECHA_STR = ahora_local().date().isoformat()
+components.html(
+    """
+    <script>
+    setTimeout(() => window.parent.location.reload(), 60000);
+    </script>
+    """,
+    height=0,
+)
 
 # Novedades
 if 'novedades_lista' not in st.session_state:
@@ -858,7 +887,7 @@ df_presentes_escuadron_base = df[
     )
 ]
 df_presentes_primera = df_presentes_escuadron_base[
-    df_presentes_escuadron_base['AULA'].map(aula_ingresa_primera_obligacion)
+    df_presentes_escuadron_base['AULA'].map(ingreso_aula_cumplido)
 ]
 primera_total = len(df_presentes_primera)
 primera_tercer_anio = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_tercer_anio)])
@@ -885,7 +914,7 @@ kpis = [
     ("En instituto", en_instituto, "Personal dentro", "ok"),
     ("En escuadrón", presentes_escuadron, "Sin comisión", "ok"),
     ("Fuera", total_fuera, "Ausentes o retirados", "alert" if total_fuera else "neutral"),
-    ("1ra oblig.", primera_total, "Formados 06:00", "ok"),
+    ("Formados", primera_total, f"Actualizado {ahora_local().strftime('%H:%M')}", "ok"),
     ("3er año", primera_tercer_anio, "En formación", "neutral"),
     ("AOP", primera_aop, "En formación", "neutral"),
     ("En aula", en_aula_count, f"{len(ubicacion_dist.get('EN AULA', []))} aulas", "neutral"),
