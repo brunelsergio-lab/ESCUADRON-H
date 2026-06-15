@@ -140,18 +140,20 @@ def hora_ingreso_aula(aula):
     return normalizar_hora_ingreso(cfg.get("ent_m", "06:00"))
 
 
-def ingreso_aula_cumplido(aula, ahora=None, fecha_objetivo=None):
+def aula_ingresa_primera_obligacion(aula, ahora=None, fecha_objetivo=None):
     hora = hora_ingreso_aula(aula)
+    if hora == "06:00":
+        return True
     ahora = ahora or ahora_local()
     fecha_objetivo = fecha_objetivo or st.session_state.get("fecha_reporte", ahora.date())
-    if fecha_objetivo > ahora.date():
-        return False
     if fecha_objetivo < ahora.date():
         return True
+    if fecha_objetivo > ahora.date():
+        return False
     try:
         hora_obj = datetime.strptime(hora, "%H:%M").time()
     except ValueError:
-        hora_obj = datetime.strptime("06:00", "%H:%M").time()
+        return False
     return ahora.time() >= hora_obj
 
 def numero_letras(n):
@@ -244,7 +246,7 @@ def generar_minuta_informativa():
         )
     ]
     df_presentes_primera_minuta = df_presentes_escuadron_minuta[
-        df_presentes_escuadron_minuta['AULA'].map(ingreso_aula_cumplido)
+        df_presentes_escuadron_minuta['AULA'].map(aula_ingresa_primera_obligacion)
     ]
 
     df_tercero = df[df['GRADO'].map(es_tercer_anio)]
@@ -726,14 +728,6 @@ if 'fecha_reporte' not in st.session_state:
     st.session_state.fecha_reporte = ahora_local().date()
 FECHA_PARTE_STR = st.session_state.fecha_reporte.isoformat()
 FECHA_STR = ahora_local().date().isoformat()
-components.html(
-    """
-    <script>
-    setTimeout(() => window.parent.location.reload(), 60000);
-    </script>
-    """,
-    height=0,
-)
 
 # Novedades
 if 'novedades_lista' not in st.session_state:
@@ -771,6 +765,32 @@ if 'horarios_config' not in st.session_state:
 # Asistencia diaria
 if 'estado_asistencia' not in st.session_state:
     st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
+
+# Refresco silencioso solo cuando falta cumplirse un horario de ingreso del dia.
+if st.session_state.fecha_reporte == ahora_local().date():
+    proximos_ingresos = []
+    for aula in AULAS_UNICAS:
+        hora = hora_ingreso_aula(aula)
+        if hora == "06:00":
+            continue
+        try:
+            hora_obj = datetime.strptime(hora, "%H:%M").time()
+        except ValueError:
+            continue
+        ingreso_dt = datetime.combine(ahora_local().date(), hora_obj, tzinfo=APP_TZ)
+        segundos = (ingreso_dt - ahora_local()).total_seconds()
+        if segundos > 0:
+            proximos_ingresos.append(segundos)
+    if proximos_ingresos:
+        espera_ms = int((min(proximos_ingresos) + 2) * 1000)
+        components.html(
+            f"""
+            <script>
+            setTimeout(() => window.parent.location.reload(), {espera_ms});
+            </script>
+            """,
+            height=0,
+        )
 
 # Variables de control UI (¡ESTAS SON LAS QUE FALTABAN!)
 if 'editando_idx' not in st.session_state:
@@ -887,7 +907,7 @@ df_presentes_escuadron_base = df[
     )
 ]
 df_presentes_primera = df_presentes_escuadron_base[
-    df_presentes_escuadron_base['AULA'].map(ingreso_aula_cumplido)
+    df_presentes_escuadron_base['AULA'].map(aula_ingresa_primera_obligacion)
 ]
 primera_total = len(df_presentes_primera)
 primera_tercer_anio = len(df_presentes_primera[df_presentes_primera['GRADO'].map(es_tercer_anio)])
@@ -914,7 +934,7 @@ kpis = [
     ("En instituto", en_instituto, "Personal dentro", "ok"),
     ("En escuadrón", presentes_escuadron, "Sin comisión", "ok"),
     ("Fuera", total_fuera, "Ausentes o retirados", "alert" if total_fuera else "neutral"),
-    ("Formados", primera_total, f"Actualizado {ahora_local().strftime('%H:%M')}", "ok"),
+    ("1ra oblig.", primera_total, "Formados 06:00", "ok"),
     ("3er año", primera_tercer_anio, "En formación", "neutral"),
     ("AOP", primera_aop, "En formación", "neutral"),
     ("En aula", en_aula_count, f"{len(ubicacion_dist.get('EN AULA', []))} aulas", "neutral"),
