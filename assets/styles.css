@@ -519,3 +519,140 @@ div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
     .nov-card strong { font-size: 1.2rem; }
     .login-title { font-size: 1.2rem; }
 }
+
+/* ==========================================================
+   Segunda mejora visual: look más premium y limpio
+   ========================================================== */
+
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+
+[data-testid="stToolbar"] {
+    right: 1rem !important;
+}
+
+[data-testid="stImage"] {
+    display: flex;
+    justify-content: center;
+}
+
+.login-hero + div[data-testid="stVerticalBlock"] {
+    max-width: 520px;
+}
+
+.login-hero img,
+[data-testid="stSidebar"] img {
+    object-fit: contain !important;
+}
+
+.rrhh-logo {
+    width: 76px;
+    height: 76px;
+    object-fit: contain;
+    border-radius: 18px;
+    padding: 0.3rem;
+    background: rgba(8, 15, 7, 0.35);
+    border: 1px solid rgba(215, 229, 31, 0.32);
+    box-shadow: 0 16px 34px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
+    flex: 0 0 auto;
+}
+
+.rrhh-panel {
+    position: relative;
+    overflow: hidden;
+}
+
+.rrhh-panel::before {
+    content: "";
+    position: absolute;
+    inset: -40% -10% auto auto;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(215,229,31,.18), transparent 62%);
+    pointer-events: none;
+}
+
+.rrhh-panel::after {
+    content: "";
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(215,229,31,.65), transparent);
+    pointer-events: none;
+}
+
+.rrhh-head,
+.rrhh-access,
+.rrhh-kpi-grid {
+    position: relative;
+    z-index: 1;
+}
+
+.rrhh-kpi,
+.rrhh-access-card,
+.nov-card,
+.sidebar-card,
+[data-testid="stForm"] {
+    backdrop-filter: blur(14px);
+}
+
+.rrhh-kpi {
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.rrhh-kpi:hover {
+    transform: translateY(-2px);
+    border-color: rgba(215, 229, 31, .38);
+    background: rgba(255,255,255,.075);
+}
+
+/* Botones de peligro menos agresivos, pero visibles */
+button[kind="secondary"]:has(div:contains("Reiniciar")) {
+    border-color: rgba(192,86,70,.35) !important;
+}
+
+/* Formularios y entradas con mejor contraste */
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stNumberInput"] input,
+[data-testid="stDateInput"] input {
+    background: rgba(6, 12, 7, 0.52) !important;
+    border: 1px solid rgba(232,234,215,.18) !important;
+}
+
+[data-testid="stTextInput"] input:focus,
+[data-testid="stTextArea"] textarea:focus,
+[data-testid="stNumberInput"] input:focus,
+[data-testid="stDateInput"] input:focus {
+    border-color: rgba(215,229,31,.55) !important;
+    box-shadow: 0 0 0 1px rgba(215,229,31,.28) !important;
+}
+
+/* Expander de mantenimiento */
+[data-testid="stExpander"] details summary {
+    font-weight: 850 !important;
+    letter-spacing: .01em !important;
+}
+
+/* Tablas con estilo más dashboard */
+[data-testid="stDataFrame"] {
+    box-shadow: 0 12px 34px rgba(0,0,0,.18) !important;
+    border: 1px solid rgba(232,234,215,.12) !important;
+}
+
+@media (max-width: 720px) {
+    .rrhh-logo {
+        width: 42px;
+        height: 42px;
+        border-radius: 11px;
+        padding: .2rem;
+    }
+    .rrhh-kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .rrhh-kpi span {
+        font-size: .55rem;
+    }
+}

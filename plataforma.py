@@ -323,6 +323,18 @@ def load_css(file_path):
 
 load_css(os.path.join(os.path.dirname(__file__), "assets", "styles.css"))
 
+
+
+def asset_data_uri(relative_path):
+    """Convierte un archivo local pequeño en data URI para usarlo dentro de HTML."""
+    try:
+        full_path = os.path.join(os.path.dirname(__file__), relative_path)
+        with open(full_path, "rb") as file:
+            encoded = base64.b64encode(file.read()).decode("ascii")
+        return f"data:image/png;base64,{encoded}"
+    except Exception:
+        return ""
+
 actualizar_movimiento = getattr(_db_manager, "actualizar_movimiento", None)
 eliminar_movimiento = getattr(_db_manager, "eliminar_movimiento", None)
 
@@ -459,7 +471,7 @@ def requerir_login():
         col_l, col_c, col_r = st.columns([1, 1.25, 1])
         with col_c:
             if os.path.exists("logo.png"):
-                st.image("logo.png", use_container_width=True)
+                st.image("logo.png", width=260)
             st.markdown("""
             <div class="login-hero">
                 <span class="login-badge">Configuración inicial</span>
@@ -490,7 +502,7 @@ def requerir_login():
         col_l, col_c, col_r = st.columns([1, 1.15, 1])
         with col_c:
             if os.path.exists("logo.png"):
-                st.image("logo.png", use_container_width=True)
+                st.image("logo.png", width=260)
             st.markdown("""
             <div class="login-hero">
                 <span class="login-badge">Acceso restringido</span>
@@ -811,7 +823,7 @@ edfis_count = sum(ubicacion_dist.get(edfis_key, []))
 activ_count = sum(ubicacion_dist.get('EN INSTITUTO', []))
 
 kpis = [
-    ("Total", TOTAL_ESCUADRON, "Dotacion registrada", "neutral"),
+    ("Total", TOTAL_ESCUADRON, "Dotación registrada", "neutral"),
     ("Presentes", disponibles, f"Ausentes {len(total_ausentes)}", "ok" if disponibles == TOTAL_ESCUADRON else "warn"),
     ("En instituto", en_instituto, "Personal dentro", "ok"),
     ("En escuadrón", presentes_escuadron, "Sin comisión", "ok"),
@@ -821,7 +833,7 @@ kpis = [
     ("AOP", primera_aop, "En formación", "neutral"),
     ("En aula", en_aula_count, f"{len(ubicacion_dist.get('EN AULA', []))} aulas", "neutral"),
     ("URF", urf_count, f"{len(ubicacion_dist.get('URF', []))} aulas", "neutral"),
-    ("Ed. fisica", edfis_count, f"{len(ubicacion_dist.get(edfis_key, []))} aulas", "neutral"),
+    ("Ed. física", edfis_count, f"{len(ubicacion_dist.get(edfis_key, []))} aulas", "neutral"),
     ("Actividad", activ_count, f"{len(ubicacion_dist.get('EN INSTITUTO', []))} aulas", "neutral"),
 ]
 
@@ -870,51 +882,55 @@ def mostrar_monitor_novedades():
     </div>
     """, unsafe_allow_html=True)
 
+logo_uri = asset_data_uri("logo.png")
+logo_header_html = f'<img class="rrhh-logo" src="{logo_uri}" alt="Escuadrón H">' if logo_uri else '<div class="rrhh-emblem">EH</div>'
+
 st.markdown(f"""
 <section class="rrhh-panel">
     <div class="rrhh-head">
         <div class="rrhh-brand">
-            <div class="rrhh-emblem">EH</div>
+            {logo_header_html}
             <div>
                 <p class="rrhh-eyebrow">Sistema compartido de control de personal</p>
-                <h1 class="rrhh-title"><span class="rrhh-title-full">Escuadron H "Cabo Marcelo Godoy"</span><span class="rrhh-title-short">Escuadron H</span></h1>
-                <p class="rrhh-subtitle">Parte diario, novedades, presentismo, ubicacion y reportes en tiempo real.</p>
+                <h1 class="rrhh-title"><span class="rrhh-title-full">Escuadrón H "Cabo Marcelo Godoy"</span><span class="rrhh-title-short">Escuadron H</span></h1>
+                <p class="rrhh-subtitle">Parte diario, novedades, presentismo, ubicación y reportes en tiempo real.</p>
             </div>
         </div>
         <div class="rrhh-status-box">
-            <div class="rrhh-live">Sistema operativo</div>
+            <div class="rrhh-live">En línea</div>
             <div class="rrhh-date">Parte: {st.session_state.fecha_reporte.strftime('%d/%m/%Y')}</div>
         </div>
     </div>
     <div class="rrhh-access">
-        <div class="rrhh-access-card"><span>Trabajo multiusuario</span><strong>Datos centralizados para guardia y control</strong></div>
-        <div class="rrhh-access-card"><span>Seguimiento activo</span><strong>Novedades vigentes hasta su vencimiento</strong></div>
-        <div class="rrhh-access-card"><span>Reportes</span><strong>Excel institucional con formato uniforme</strong></div>
+        <div class="rrhh-access-card"><span>Trabajo multiusuario</span><strong>Control centralizado para guardia y conducción</strong></div>
+        <div class="rrhh-access-card"><span>Seguimiento activo</span><strong>Novedades activas con seguimiento automático</strong></div>
+        <div class="rrhh-access-card"><span>Reportes</span><strong>Exportación institucional lista para compartir</strong></div>
     </div>
     <div class="rrhh-kpi-grid">{kpi_html}</div>
 </section>
 """, unsafe_allow_html=True)
 
 st.divider()
-# 🔹 BOTÓN OCULTO PARA FORZAR SINCRONIZACIÓN (Por si las dudas)
-if st.button("🔄 Sincronizar Datos", key="sync_btn", help="Fuerza la recarga desde base de datos"):
-    st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
-    st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
-    st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
-    st.success("✅ Datos sincronizados correctamente")
-    st.rerun()
-# 🔹 BOTÓN DE EMERGENCIA: RESETEAR ASISTENCIA
-if st.button("🚨 RESETEAR ASISTENCIA DEL DÍA", key="reset_asistencia", help="Pone a TODOS en PRESENTE"):
-    import sqlite3
-    conn = sqlite3.connect("parte_diario.db")
-    conn.execute("DELETE FROM asistencia_diaria WHERE fecha=?", (FECHA_STR,))
-    conn.commit()
-    conn.close()
-    
-    # Limpiar session_state
-    st.session_state.estado_asistencia = {}
-    st.success("✅ Asistencia reiniciada. Todos en PRESENTE.")
-    st.rerun()
+with st.expander("⚙️ Acciones rápidas y mantenimiento", expanded=False):
+    st.caption("Usá estas opciones solo cuando necesites refrescar datos o reiniciar la asistencia del día.")
+    col_sync, col_reset = st.columns(2)
+    with col_sync:
+        if st.button("🔄 Sincronizar datos", key="sync_btn", help="Fuerza la recarga desde base de datos", use_container_width=True):
+            st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
+            st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
+            st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
+            st.success("✅ Datos sincronizados correctamente")
+            st.rerun()
+    with col_reset:
+        if st.button("🚨 Reiniciar asistencia", key="reset_asistencia", help="Pone a TODOS en PRESENTE", use_container_width=True):
+            import sqlite3
+            conn = sqlite3.connect("parte_diario.db")
+            conn.execute("DELETE FROM asistencia_diaria WHERE fecha=?", (FECHA_STR,))
+            conn.commit()
+            conn.close()
+            st.session_state.estado_asistencia = {}
+            st.success("✅ Asistencia reiniciada. Todos en PRESENTE.")
+            st.rerun()
 # ==============================================================================
 # 4. PESTAÑAS
 # ==============================================================================
