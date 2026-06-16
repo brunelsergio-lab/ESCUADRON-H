@@ -807,6 +807,228 @@ def requerir_login():
             st.rerun()
 
 
+
+
+def obtener_query_param(nombre, default=""):
+    try:
+        valor = st.query_params.get(nombre, default)
+        if isinstance(valor, list):
+            return valor[0] if valor else default
+        return valor if valor is not None else default
+    except Exception:
+        try:
+            params = st.experimental_get_query_params()
+            valor = params.get(nombre, [default])
+            return valor[0] if isinstance(valor, list) else valor
+        except Exception:
+            return default
+
+
+def formulario_plan_publico_solicitado():
+    return str(obtener_query_param("form", "")).strip().lower() in {"plan", "plan_llamada", "llamada"}
+
+
+def formulario_plan_token_valido():
+    import hmac as _hmac
+    if not valor_verdadero(obtener_secret_o_env("PLAN_FORM_ENABLED", "false")):
+        return False, "El formulario público no está habilitado."
+    token_cfg = str(obtener_secret_o_env("PLAN_FORM_TOKEN", "")).strip()
+    token_url = str(obtener_query_param("token", "")).strip()
+    if not token_cfg:
+        return False, "Falta configurar PLAN_FORM_TOKEN en Secrets."
+    if not token_url:
+        return False, "Falta el token del formulario en el enlace."
+    if not _hmac.compare_digest(token_cfg, token_url):
+        return False, "Token inválido. Verifique el enlace recibido."
+    return True, ""
+
+
+def mostrar_formulario_plan_publico(df_personal):
+    st.markdown("""
+    <div class="login-hero">
+        <span class="login-badge">Formulario de actualización</span>
+        <h1 class="login-title">Plan de llamada y licencia</h1>
+        <p class="login-subtitle">Completá solo los campos solicitados para licencia, traslado y contacto de emergencia.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    ok_token, msg_token = formulario_plan_token_valido()
+    if not ok_token:
+        st.error(msg_token)
+        st.stop()
+
+    st.info("Ingresá tu DNI o CE para validar tus datos ya cargados. El formulario no modifica la base de personal: solo agrega o actualiza los campos de licencia.")
+    identificador = st.text_input("DNI o CE", placeholder="Escribí tu DNI o CE", key="plan_publico_identificador")
+
+    if not identificador.strip():
+        st.stop()
+
+    ident = identificador.strip().upper().replace(" ", "")
+    df_busqueda = df_personal.copy()
+    df_busqueda["_DNI"] = df_busqueda["DNI"].astype(str).str.upper().str.replace(" ", "", regex=False)
+    df_busqueda["_CE"] = df_busqueda["CE"].astype(str).str.upper().str.replace(" ", "", regex=False)
+    encontrados = df_busqueda[(df_busqueda["_DNI"] == ident) | (df_busqueda["_CE"] == ident)]
+
+    if encontrados.empty:
+        st.warning("No se encontró personal con ese DNI/CE. Verificá el número o comunicate con administración.")
+        st.stop()
+
+    if len(encontrados) > 1:
+        opciones = [f"{int(r['ORDEN_LIMP'])} - {r['NOMBRE_COMPLETO']} - {r['AULA']}" for _, r in encontrados.iterrows()]
+        seleccionado = st.selectbox("Se encontró más de un registro. Seleccioná el correcto:", opciones)
+        orden_sel = int(seleccionado.split(" - ", 1)[0])
+        row = encontrados[encontrados["ORDEN_LIMP"].astype(int) == orden_sel].iloc[0]
+    else:
+        row = encontrados.iloc[0]
+
+    orden = int(row["ORDEN_LIMP"])
+    contacto = obtener_contacto(orden) or {}
+
+    def limpio_base(valor):
+        try:
+            if pd.isna(valor):
+                return ""
+        except Exception:
+            pass
+        txt = str(valor or "").strip()
+        return "" if txt.lower() == "nan" else txt
+
+    nombre_base = limpio_base(row["NOMBRE_COMPLETO"]).upper()
+    dni_base = limpio_base(row["DNI"])
+    ce_base = limpio_base(row["CE"])
+    aula_base = limpio_base(row["AULA"])
+
+    st.success(f"Datos validados: {nombre_base} | Aula {aula_base} | Orden {orden}")
+    st.caption("Los datos validados de apellido/nombre, DNI, CE y aula se toman de la base ya cargada y quedan bloqueados. Solo se completan los campos nuevos.")
+
+    def idx_si_no(valor, defecto="NO"):
+        valor = str(valor or defecto).strip().upper()
+        return 0 if valor == "SI" else 1
+
+    ctrans, cveh = st.columns(2)
+    with ctrans:
+        viaja_transporte = st.radio(
+            "¿Viaja en transporte público?",
+            ["SI", "NO"],
+            index=idx_si_no(contacto.get("viaja_transporte_publico")),
+            horizontal=True,
+            key=f"pub_transporte_{orden}",
+        )
+    with cveh:
+        viaja_vehiculo = st.radio(
+            "¿Viaja en vehículo particular?",
+            ["SI", "NO"],
+            index=idx_si_no(contacto.get("viaja_vehiculo_particular")),
+            horizontal=True,
+            key=f"pub_vehiculo_{orden}",
+        )
+
+    with st.form("formulario_publico_plan_llamada"):
+        st.markdown("### Datos validados de la base")
+        st.text_input("Apellido y nombres", value=nombre_base, disabled=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.text_input("DNI", value=dni_base, disabled=True)
+        with c2:
+            st.text_input("CE", value=ce_base, disabled=True)
+        with c3:
+            st.text_input("Aula", value=aula_base, disabled=True)
+
+        st.markdown("### Campos para completar")
+        lugar_licencia = st.text_input("Lugar de licencia", value=contacto.get("lugar_licencia", ""), placeholder="Ciudad/localidad/provincia")
+        direccion = st.text_area("Dirección", value=contacto.get("direccion", ""), placeholder="Dirección completa del lugar de licencia")
+        c3, c4, c5 = st.columns(3)
+        with c3:
+            barrio = st.text_input("Barrio", value=contacto.get("barrio", ""), placeholder="Barrio")
+        with c4:
+            calle = st.text_input("Calle", value=contacto.get("calle", ""), placeholder="Calle")
+        with c5:
+            numero = st.text_input("Número", value=contacto.get("numero", ""), placeholder="Número")
+        unidad_proxima_gn = st.text_input("Unidad más próxima de GN", value=contacto.get("unidad_proxima_gn", ""), placeholder="Unidad/Subunidad más cercana")
+
+        if viaja_vehiculo == "SI":
+            st.markdown("### Vehículo particular")
+            cv1, cv2 = st.columns(2)
+            with cv1:
+                vehiculo_marca = st.text_input("Marca", value=contacto.get("vehiculo_marca", ""), placeholder="Ej: Toyota")
+                vehiculo_dominio = st.text_input("Dominio", value=contacto.get("vehiculo_dominio", ""), placeholder="Patente/dominio")
+            with cv2:
+                vehiculo_modelo = st.text_input("Modelo", value=contacto.get("vehiculo_modelo", ""), placeholder="Ej: Hilux")
+                vehiculo_titular = st.text_input("Titular del vehículo", value=contacto.get("vehiculo_titular", ""), placeholder="Nombre del titular")
+        else:
+            vehiculo_marca = ""
+            vehiculo_modelo = ""
+            vehiculo_dominio = ""
+            vehiculo_titular = ""
+
+        st.markdown("### Teléfonos")
+        ct1, ct2 = st.columns(2)
+        with ct1:
+            telefono_particular = st.text_input("Teléfono particular", value=contacto.get("telefono_particular", ""), placeholder="Teléfono propio")
+        with ct2:
+            telefono_emergencia_licencia = st.text_input("Teléfono de emergencia para licencia", value=contacto.get("telefono_emergencia_licencia", ""), placeholder="Teléfono de emergencia")
+        observaciones = st.text_area("Observaciones", value=contacto.get("observaciones", ""), placeholder="Observaciones opcionales")
+        confirmar = st.checkbox("Confirmo que los datos cargados son correctos y están actualizados")
+        enviar = st.form_submit_button("Guardar mis datos", type="primary", use_container_width=True)
+
+    if enviar:
+        faltantes = []
+        if not lugar_licencia.strip(): faltantes.append("lugar de licencia")
+        if not direccion.strip(): faltantes.append("dirección")
+        if not barrio.strip(): faltantes.append("barrio")
+        if not calle.strip(): faltantes.append("calle")
+        if not numero.strip(): faltantes.append("número")
+        if not unidad_proxima_gn.strip(): faltantes.append("unidad más próxima de GN")
+        if not telefono_particular.strip(): faltantes.append("teléfono particular")
+        if not telefono_emergencia_licencia.strip(): faltantes.append("teléfono de emergencia para licencia")
+        if viaja_vehiculo == "SI":
+            if not vehiculo_marca.strip(): faltantes.append("marca del vehículo")
+            if not vehiculo_modelo.strip(): faltantes.append("modelo del vehículo")
+            if not vehiculo_dominio.strip(): faltantes.append("dominio del vehículo")
+            if not vehiculo_titular.strip(): faltantes.append("titular del vehículo")
+        if not confirmar: faltantes.append("confirmación")
+
+        if faltantes:
+            st.error("Falta completar: " + ", ".join(faltantes) + ".")
+        else:
+            guardar_contacto({
+                "orden": orden,
+                "apellido_nombres": nombre_base,
+                "dni": dni_base,
+                "ce": ce_base,
+                "viaja_transporte_publico": viaja_transporte,
+                "viaja_vehiculo_particular": viaja_vehiculo,
+                "vehiculo_marca": vehiculo_marca.strip().upper(),
+                "vehiculo_modelo": vehiculo_modelo.strip().upper(),
+                "vehiculo_dominio": vehiculo_dominio.strip().upper(),
+                "vehiculo_titular": vehiculo_titular.strip().upper(),
+                "lugar_licencia": lugar_licencia.strip().upper(),
+                "direccion": direccion.strip().upper(),
+                "barrio": barrio.strip().upper(),
+                "calle": calle.strip().upper(),
+                "numero": numero.strip().upper(),
+                "unidad_proxima_gn": unidad_proxima_gn.strip().upper(),
+                "telefono_particular": telefono_particular.strip(),
+                "telefono_emergencia_licencia": telefono_emergencia_licencia.strip(),
+                "observaciones": observaciones.strip().upper(),
+                "actualizado_en": ahora_local().isoformat(timespec="seconds"),
+            })
+            try:
+                registrar_movimiento(
+                    ahora_local().date().isoformat(),
+                    "Plan de llamada",
+                    "FORMULARIO LICENCIA",
+                    orden,
+                    nombre_base,
+                    aula_base,
+                    "Datos de licencia actualizados por formulario público",
+                )
+            except Exception:
+                pass
+            st.success("✅ Tus datos fueron guardados correctamente. Muchas gracias.")
+            st.info("Ya podés cerrar esta pantalla.")
+            st.stop()
+
 def panel_admin_usuarios():
     st.subheader("👥 Administración de usuarios")
     st.caption("Crea y administra los usuarios autorizados para ingresar a la plataforma.")
@@ -916,6 +1138,15 @@ if st.session_state.get("db_iniciada_firma") != firma_db_actual:
 
 aplicar_recuperacion_admin()
 
+# Cargar personal antes del login para permitir formulario público protegido por token.
+df = cargar_personal()
+if df.empty:
+    st.stop()
+
+if formulario_plan_publico_solicitado():
+    mostrar_formulario_plan_publico(df)
+    st.stop()
+
 requerir_login()
 
 info_bd = getattr(_db_manager, "info_base_datos", lambda: {"motor": "desconocido", "persistente": False, "ruta": ""})()
@@ -931,10 +1162,6 @@ else:
 
 if 'horarios_txt_importado' not in st.session_state:
     st.session_state.horarios_txt_importado = cargar_horarios_txt(r"C:\Users\admin\Desktop\horarios.txt")
-
-df = cargar_personal()
-if df.empty:
-    st.stop()
 
 TOTAL_ESCUADRON = len(df)
 AULAS_UNICAS = sorted(df['AULA'].unique())
@@ -1886,6 +2113,19 @@ with tab_alm:
 with tab_plan:
     st.subheader("📞 Plan de Llamada - Base de Contactos")
     st.info("Registra domicilios y contactos de emergencia para cada personal del escuadrón.")
+
+    with st.expander("🔗 Formulario público para datos de licencia", expanded=False):
+        form_enabled = valor_verdadero(obtener_secret_o_env("PLAN_FORM_ENABLED", "false"))
+        form_token = str(obtener_secret_o_env("PLAN_FORM_TOKEN", "")).strip()
+        if form_enabled and form_token:
+            st.success("Formulario público habilitado.")
+            st.caption("Agregá este final a la URL de tu app y compartilo solo con el personal autorizado:")
+            st.code(f"?form=plan_llamada&token={form_token}", language="text")
+            st.caption("Ejemplo: https://TU-APP.streamlit.app/?form=plan_llamada&token=TU_TOKEN")
+        else:
+            st.warning("Formulario público deshabilitado. Para habilitarlo, agregá en Secrets:")
+            st.code('PLAN_FORM_ENABLED = "true"\nPLAN_FORM_TOKEN = "CAMBIAR_TOKEN_SEGURO"', language="toml")
+        st.caption("El formulario valida DNI/CE contra alumnos.csv, no modifica la base de personal y guarda solo los campos de licencia en plan_llamada.")
     
     search = live_search_input("Buscar personal:", "Nombre, DNI, CE o Orden", "search_plan")
     
@@ -1941,11 +2181,11 @@ with tab_plan:
         col1, col2, col3 = st.columns(3)
         with col1: st.metric("Total Registrados", len(todos))
         with col2: 
-            con_tel = sum(1 for t in todos if t.get('telefono_personal'))
-            st.metric("Con Teléfono Personal", con_tel)
+            con_tel = sum(1 for t in todos if (t.get('telefono_particular') or t.get('telefono_personal')))
+            st.metric("Con Teléfono Particular", con_tel)
         with col3:
-            con_urg = sum(1 for t in todos if t.get('telefono_emergencia'))
-            st.metric("Con Contacto Emergencia", con_urg)
+            con_urg = sum(1 for t in todos if (t.get('telefono_emergencia_licencia') or t.get('telefono_emergencia')))
+            st.metric("Con Tel. Emergencia", con_urg)
         
         if st.button("📥 EXPORTAR PLAN DE LLAMADA (EXCEL)", type="primary", use_container_width=True):
             from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -1953,42 +2193,64 @@ with tab_plan:
             ws = wb.active
             ws.title = "PLAN DE LLAMADA"
             
-            ws.merge_cells('A1:H1')
-            ws['A1'] = "PLAN DE LLAMADA - ESCUADRÓN H"
+            headers = [
+                "Nro", "APELLIDO Y NOMBRES", "DNI", "CE", "AULA",
+                "TRANSP. PUBLICO", "VEHICULO PARTICULAR", "MARCA", "MODELO", "DOMINIO", "TITULAR VEHICULO",
+                "LUGAR LICENCIA", "DIRECCION", "BARRIO", "CALLE", "NUMERO", "UNIDAD GN PROXIMA",
+                "TEL. PARTICULAR", "TEL. EMERG. LICENCIA", "OBSERV.", "ACTUALIZADO"
+            ]
+            ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+            ws['A1'] = "PLAN DE LLAMADA / LICENCIA - ESCUADRÓN H"
             ws['A1'].font = excel_font(bold=True, size=16, color=EXCEL_WHITE)
             ws['A1'].fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
             ws['A1'].alignment = Alignment(horizontal="center")
             
-            headers = ["Nro", "NOMBRE", "AULA", "DOMICILIO", "TEL. PERSONAL", "TEL. EMERGENCIA", "CONTACTO EMERG.", "OBSERV."]
             for col, h in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=col, value=h)
                 cell.font = excel_font(bold=True, color=EXCEL_WHITE, size=9)
                 cell.fill = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
-                cell.alignment = Alignment(horizontal="center")
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                 cell.border = Border(left=Side(style="thin", color=EXCEL_BORDER), right=Side(style="thin", color=EXCEL_BORDER), top=Side(style="thin", color=EXCEL_BORDER), bottom=Side(style="thin", color=EXCEL_BORDER))
             
             row = 4
             for nro, cont in enumerate(sorted(todos, key=lambda x: x['orden']), 1):
                 pers = df[df['ORDEN_LIMP'] == cont['orden']]
-                nombre = pers.iloc[0]['NOMBRE_COMPLETO'] if not pers.empty else ""
+                nombre_base = pers.iloc[0]['NOMBRE_COMPLETO'] if not pers.empty else ""
                 aula = pers.iloc[0]['AULA'] if not pers.empty else ""
-                
-                ws.cell(row=row, column=1, value=nro)
-                ws.cell(row=row, column=2, value=nombre)
-                ws.cell(row=row, column=3, value=aula)
-                ws.cell(row=row, column=4, value=cont.get('domicilio',''))
-                ws.cell(row=row, column=5, value=cont.get('telefono_personal',''))
-                ws.cell(row=row, column=6, value=cont.get('telefono_emergencia',''))
-                ws.cell(row=row, column=7, value=f"{cont.get('nombre_emergencia','')} ({cont.get('parentesco_emergencia','')})")
-                ws.cell(row=row, column=8, value=cont.get('observaciones',''))
-                
-                for c in range(1, 9):
+                dni_base = pers.iloc[0]['DNI'] if not pers.empty else ""
+                ce_base = pers.iloc[0]['CE'] if not pers.empty else ""
+                valores = [
+                    nro,
+                    cont.get('apellido_nombres') or nombre_base,
+                    cont.get('dni') or dni_base,
+                    cont.get('ce') or ce_base,
+                    aula,
+                    cont.get('viaja_transporte_publico',''),
+                    cont.get('viaja_vehiculo_particular',''),
+                    cont.get('vehiculo_marca',''),
+                    cont.get('vehiculo_modelo',''),
+                    cont.get('vehiculo_dominio',''),
+                    cont.get('vehiculo_titular',''),
+                    cont.get('lugar_licencia',''),
+                    cont.get('direccion') or cont.get('domicilio',''),
+                    cont.get('barrio',''),
+                    cont.get('calle',''),
+                    cont.get('numero',''),
+                    cont.get('unidad_proxima_gn',''),
+                    cont.get('telefono_particular') or cont.get('telefono_personal',''),
+                    cont.get('telefono_emergencia_licencia') or cont.get('telefono_emergencia',''),
+                    cont.get('observaciones',''),
+                    cont.get('actualizado_en',''),
+                ]
+                for c, val in enumerate(valores, 1):
+                    ws.cell(row=row, column=c, value=val)
                     ws.cell(row=row, column=c).border = Border(left=Side(style="thin", color=EXCEL_BORDER), right=Side(style="thin", color=EXCEL_BORDER), top=Side(style="thin", color=EXCEL_BORDER), bottom=Side(style="thin", color=EXCEL_BORDER))
-                    ws.cell(row=row, column=c).alignment = Alignment(horizontal="center" if c in [1,3] else "left")
+                    ws.cell(row=row, column=c).alignment = Alignment(horizontal="center" if c in [1,3,4,5,6,7,16] else "left", vertical="top", wrap_text=True)
                 row += 1
             
-            for col, w in zip("ABCDEFGH", [8, 30, 10, 35, 15, 15, 25, 30]):
-                ws.column_dimensions[col].width = w
+            widths = [8, 32, 14, 12, 10, 14, 16, 14, 14, 14, 25, 22, 32, 18, 18, 10, 24, 18, 22, 28, 20]
+            for idx, w in enumerate(widths, 1):
+                ws.column_dimensions[openpyxl.utils.get_column_letter(idx)].width = w
             
             output = f"PLAN_LLAMADA_{datetime.now().strftime('%d%m%Y')}.xlsx"
             descargar_archivo_auto(excel_bytes(wb), output, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
