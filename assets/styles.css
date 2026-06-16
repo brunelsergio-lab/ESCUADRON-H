@@ -551,19 +551,20 @@ div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
     }
 
     .rrhh-head {
-        align-items: center;
-        gap: 0.5rem;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.45rem;
         margin-bottom: 0.5rem;
     }
 
-    .rrhh-brand { gap: 0.45rem; min-width: 0; }
+    .rrhh-brand { gap: 0.45rem; min-width: 0; width: 100%; }
     .rrhh-emblem { width: 34px; height: 34px; border-radius: 9px; font-size: 0.78rem; flex: 0 0 auto; }
     .rrhh-eyebrow { display: none; }
     .rrhh-title { font-size: 1rem; line-height: 1.1; white-space: nowrap; overflow: visible; max-width: none; }
     .rrhh-title-full { display: none; }
     .rrhh-title-short { display: inline; }
     .rrhh-subtitle { display: none; }
-    .rrhh-status-box { align-items: flex-end; margin-top: 0; gap: 0.25rem; }
+    .rrhh-status-box { align-items: flex-end; align-self: flex-end; margin-top: 0; gap: 0.25rem; max-width: 100%; }
     .rrhh-live { display: none; }
     .rrhh-date { padding: 0.24rem 0.48rem; font-size: 0.7rem; }
     .rrhh-clock { gap: 0.3rem; font-size: 0.66rem; }

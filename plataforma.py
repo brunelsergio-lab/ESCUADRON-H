@@ -251,8 +251,8 @@ def generar_minuta_informativa():
     fecha_minuta = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
 
     # La minuta debe reflejar la base actual, no el estado que quedo en pantalla.
-    novedades = obtener_novedades(FECHA_STR)
-    estado_asistencia_actual = obtener_asistencia(FECHA_STR)
+    novedades = obtener_novedades(FECHA_PARTE_STR)
+    estado_asistencia_actual = obtener_asistencia(FECHA_PARTE_STR)
     st.session_state.novedades_lista = novedades
     st.session_state.estado_asistencia = estado_asistencia_actual
 
@@ -547,6 +547,30 @@ if not hasattr(_db_manager, "contar_usuarios"):
             _db_manager.run(conn, "UPDATE usuarios SET activo=? WHERE id=?", (1 if activo else 0, id_usuario))
             conn.commit()
 
+    def _actualizar_rol_usuario(id_usuario, rol):
+        rol = "admin" if str(rol).strip().lower() == "admin" else "usuario"
+        with _db_manager.get_db() as conn:
+            _db_manager.run(conn, "UPDATE usuarios SET rol=? WHERE id=?", (rol, id_usuario))
+            conn.commit()
+
+    def _crear_o_actualizar_usuario_admin(usuario, password, solo_admin=False):
+        usuario = str(usuario).strip().lower()
+        user = _obtener_usuario(usuario)
+        if user:
+            _actualizar_password_usuario(user["id"], password)
+            with _db_manager.get_db() as conn:
+                _db_manager.run(conn, "UPDATE usuarios SET rol='admin', activo=1 WHERE id=?", (user["id"],))
+                if solo_admin:
+                    _db_manager.run(conn, "UPDATE usuarios SET rol='usuario' WHERE usuario<>?", (usuario,))
+                conn.commit()
+            return _obtener_usuario(usuario)
+        _crear_usuario(usuario, password, rol="admin", activo=True)
+        if solo_admin:
+            with _db_manager.get_db() as conn:
+                _db_manager.run(conn, "UPDATE usuarios SET rol='usuario' WHERE usuario<>?", (usuario,))
+                conn.commit()
+        return _obtener_usuario(usuario)
+
     def _eliminar_usuario(id_usuario):
         with _db_manager.get_db() as conn:
             _db_manager.run(conn, "DELETE FROM usuarios WHERE id=?", (id_usuario,))
@@ -559,6 +583,8 @@ if not hasattr(_db_manager, "contar_usuarios"):
     _db_manager.listar_usuarios = _listar_usuarios
     _db_manager.actualizar_password_usuario = _actualizar_password_usuario
     _db_manager.actualizar_estado_usuario = _actualizar_estado_usuario
+    _db_manager.actualizar_rol_usuario = _actualizar_rol_usuario
+    _db_manager.crear_o_actualizar_usuario_admin = _crear_o_actualizar_usuario_admin
     _db_manager.eliminar_usuario = _eliminar_usuario
 
 
@@ -578,6 +604,48 @@ def cerrar_sesion():
             del st.session_state[key]
 
 
+def obtener_secret_o_env(clave, default=None):
+    valor = os.getenv(clave)
+    if valor not in (None, ""):
+        return valor
+    try:
+        return st.secrets.get(clave, default)
+    except Exception:
+        return default
+
+
+def valor_verdadero(valor):
+    return str(valor or "").strip().lower() in {"1", "true", "si", "sí", "yes", "y"}
+
+
+def aplicar_recuperacion_admin():
+    """Recupera/actualiza el administrador propietario usando Secrets o variables de entorno.
+
+    Secrets admitidos:
+    OWNER_ADMIN_ENABLED=true
+    OWNER_ADMIN_USER="tu_usuario"
+    OWNER_ADMIN_PASSWORD="tu_contraseña"
+    OWNER_ADMIN_SOLO=true  # opcional: deja a los demás administradores como usuario
+    """
+    if not valor_verdadero(obtener_secret_o_env("OWNER_ADMIN_ENABLED", "false")):
+        return
+
+    usuario = str(obtener_secret_o_env("OWNER_ADMIN_USER", "")).strip()
+    password = str(obtener_secret_o_env("OWNER_ADMIN_PASSWORD", "")).strip()
+    solo_admin = valor_verdadero(obtener_secret_o_env("OWNER_ADMIN_SOLO", "false"))
+
+    if not usuario or not password:
+        st.warning("Recuperación admin activada, pero faltan OWNER_ADMIN_USER y/o OWNER_ADMIN_PASSWORD en Secrets.")
+        return
+    if len(password) < 6:
+        st.warning("OWNER_ADMIN_PASSWORD debe tener al menos 6 caracteres.")
+        return
+
+    if hasattr(_db_manager, "crear_o_actualizar_usuario_admin"):
+        _db_manager.crear_o_actualizar_usuario_admin(usuario, password, solo_admin=solo_admin)
+        st.session_state.admin_recovery_applied = True
+
+
 def requerir_login():
     total_usuarios = _db_manager.contar_usuarios()
 
@@ -586,31 +654,16 @@ def requerir_login():
         with col_c:
             logo_login_uri = asset_data_uri(APP_LOGO_FILE)
             if logo_login_uri:
-                st.markdown(f'<div class="login-logo-wrap"><img class="login-logo" src="{logo_login_uri}" alt="Escuadr?n H"></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="login-logo-wrap"><img class="login-logo" src="{logo_login_uri}" alt="Escuadron H"></div>', unsafe_allow_html=True)
             st.markdown("""
             <div class="login-hero">
-                <span class="login-badge">Configuración inicial</span>
-                <h1 class="login-title">Escuadrón H</h1>
-                <p class="login-subtitle">Crea el primer usuario administrador para proteger la plataforma.</p>
+                <span class="login-badge">Acceso restringido</span>
+                <h1 class="login-title">Escuadron H</h1>
+                <p class="login-subtitle">No hay un administrador propietario configurado para esta base.</p>
             </div>
-            <div class="login-card-note">Después de crear el administrador, nadie podrá ingresar sin usuario y contraseña.</div>
+            <div class="login-card-note">Por seguridad, ya no se permite crear administradores desde el enlace publico. Configura OWNER_ADMIN_ENABLED, OWNER_ADMIN_USER y OWNER_ADMIN_PASSWORD en Secrets para recuperar el acceso.</div>
             """, unsafe_allow_html=True)
-            with st.form("crear_admin_inicial"):
-                usuario = st.text_input("Usuario administrador", value="admin")
-                password = st.text_input("Contraseña", type="password")
-                password2 = st.text_input("Repetir contraseña", type="password")
-                crear = st.form_submit_button("Crear administrador", type="primary", use_container_width=True)
-        if crear:
-            if not usuario.strip() or not password:
-                st.error("Completa usuario y contraseña.")
-            elif password != password2:
-                st.error("Las contraseñas no coinciden.")
-            elif len(password) < 6:
-                st.error("La contraseña debe tener al menos 6 caracteres.")
-            else:
-                _db_manager.crear_usuario(usuario, password, rol="admin", activo=True)
-                st.success("Administrador creado. Inicia sesión para continuar.")
-                st.rerun()
+            st.error("Acceso bloqueado: falta configurar el administrador propietario.")
         st.stop()
 
     if not st.session_state.get("autenticado"):
@@ -690,11 +743,20 @@ def panel_admin_usuarios():
     st.divider()
     for user in usuarios:
         with st.container(border=True):
-            c_info, c_estado, c_pass, c_del = st.columns([3, 1.3, 2, 1])
+            c_info, c_rol, c_estado, c_pass, c_del = st.columns([2.4, 1.2, 1.2, 2, 1])
             with c_info:
                 estado = "Activo" if int(user.get("activo", 0)) == 1 else "Inactivo"
-                st.markdown(f"**{user['usuario']}** | {user.get('rol', 'usuario')} | {estado}")
-                st.caption(f"Creado: {user.get('creado_en', '-')}")
+                st.markdown(f"**{user['usuario']}**")
+                st.caption(f"Rol actual: {user.get('rol', 'usuario')} | {estado} | Creado: {user.get('creado_en', '-')}")
+            with c_rol:
+                rol_actual = user.get("rol", "usuario")
+                opciones_rol = ["usuario", "admin"]
+                idx_rol = opciones_rol.index(rol_actual) if rol_actual in opciones_rol else 0
+                es_mi_usuario = user.get("usuario") == (usuario_actual() or {}).get("usuario")
+                nuevo_rol = st.selectbox("Rol", opciones_rol, index=idx_rol, key=f"usr_rol_{user['id']}", disabled=es_mi_usuario)
+                if nuevo_rol != rol_actual and hasattr(_db_manager, "actualizar_rol_usuario"):
+                    _db_manager.actualizar_rol_usuario(user["id"], nuevo_rol)
+                    st.rerun()
             with c_estado:
                 activo = int(user.get("activo", 0)) == 1
                 nuevo_estado = st.toggle("Activo", value=activo, key=f"usr_activo_{user['id']}")
@@ -751,7 +813,20 @@ if 'db_iniciada' not in st.session_state:
     init_db()
     st.session_state.db_iniciada = True
 
+aplicar_recuperacion_admin()
+
 requerir_login()
+
+info_bd = getattr(_db_manager, "info_base_datos", lambda: {"motor": "desconocido", "persistente": False, "ruta": ""})()
+if not info_bd.get("persistente"):
+    st.sidebar.warning(
+        "⚠️ Base local SQLite: sirve para pruebas, pero puede vaciarse si el servidor se reinicia. "
+        "Para guardar usuarios y datos permanentemente, configure DATABASE_URL en Secrets."
+    )
+    if info_bd.get("ruta"):
+        st.sidebar.caption(f"BD local: {info_bd['ruta']}")
+else:
+    st.sidebar.success("✅ Base de datos persistente conectada")
 
 if 'horarios_txt_importado' not in st.session_state:
     st.session_state.horarios_txt_importado = cargar_horarios_txt(r"C:\Users\admin\Desktop\horarios.txt")
@@ -781,7 +856,7 @@ FECHA_PARTE_STR = st.session_state.fecha_reporte.isoformat()
 
 # Novedades
 if 'novedades_lista' not in st.session_state:
-    st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
+    st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
 
 # Horarios config
 if 'horarios_config' not in st.session_state:
@@ -812,11 +887,11 @@ sincronizar_ubicacion_con_horarios()
 
 # Lista de almuerzo
 if 'lista_almuerzo' not in st.session_state:
-    st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
+    st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_PARTE_STR)
 
 # Asistencia diaria
 if 'estado_asistencia' not in st.session_state:
-    st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
+    st.session_state.estado_asistencia = obtener_asistencia(FECHA_PARTE_STR)
 
 # Variables de control UI (¡ESTAS SON LAS QUE FALTABAN!)
 if 'editando_idx' not in st.session_state:
@@ -826,7 +901,7 @@ if 'sel_nov' not in st.session_state:
     st.session_state.sel_nov = None
 
 def log_movimiento(modulo, accion, orden=None, nombre=None, aula=None, detalle=""):
-    registrar_movimiento(FECHA_STR, modulo, accion, orden, nombre, aula, detalle)
+    registrar_movimiento(FECHA_PARTE_STR, modulo, accion, orden, nombre, aula, detalle)
 
 
 def estado_asistencia_por_ambito(ambito):
@@ -871,15 +946,15 @@ if st.session_state.pop("limpiar_form_novedad_pendiente", False):
 # ==============================================================================
 
 # # 🔹 1. RECARGAR DATOS DESDE DB (Prioridad a session_state)
-st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
-st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
+st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
+st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_PARTE_STR)
 
 # Asistencia: NO sobrescribir si ya hay datos (prioridad a cambios manuales)
 if not st.session_state.estado_asistencia:
-    st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
+    st.session_state.estado_asistencia = obtener_asistencia(FECHA_PARTE_STR)
 else:
     # Sincronizar solo registros nuevos de DB
-    db_asistencia = obtener_asistencia(FECHA_STR)
+    db_asistencia = obtener_asistencia(FECHA_PARTE_STR)
     for orden, estado in db_asistencia.items():
         if orden not in st.session_state.estado_asistencia:
             st.session_state.estado_asistencia[orden] = estado
@@ -1105,18 +1180,16 @@ with st.expander("⚙️ Acciones rápidas y mantenimiento", expanded=False):
     col_sync, col_reset = st.columns(2)
     with col_sync:
         if st.button("🔄 Sincronizar datos", key="sync_btn", help="Fuerza la recarga desde base de datos", use_container_width=True):
-            st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
-            st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
-            st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
+            st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
+            st.session_state.estado_asistencia = obtener_asistencia(FECHA_PARTE_STR)
+            st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_PARTE_STR)
             st.success("✅ Datos sincronizados correctamente")
             st.rerun()
     with col_reset:
         if st.button("🚨 Reiniciar asistencia", key="reset_asistencia", help="Pone a TODOS en PRESENTE", use_container_width=True):
-            import sqlite3
-            conn = sqlite3.connect("parte_diario.db")
-            conn.execute("DELETE FROM asistencia_diaria WHERE fecha=?", (FECHA_STR,))
-            conn.commit()
-            conn.close()
+            with _db_manager.get_db() as conn:
+                _db_manager.run(conn, "DELETE FROM asistencia_diaria WHERE fecha=?", (FECHA_PARTE_STR,))
+                conn.commit()
             st.session_state.estado_asistencia = {}
             st.success("✅ Asistencia reiniciada. Todos en PRESENTE.")
             st.rerun()
@@ -1324,14 +1397,17 @@ with tab_nov:
             horizontal=True
         )
 
+        fecha_form_default = st.session_state.fecha_reporte
         cf1, cf2 = st.columns(2)
         with cf1:
             if es_edicion:
-                try: fi_val = datetime.strptime(data['fecha_ini'], '%d%b%y')
-                except: fi_val = datetime.now()
+                try:
+                    fi_val = datetime.strptime(data['fecha_ini'], '%d%b%y').date()
+                except Exception:
+                    fi_val = fecha_form_default
                 fi = st.date_input("Desde:", value=fi_val, key="date_ini").strftime('%d%b%y').upper()
             else:
-                fi = st.date_input("Desde:", value=datetime.now(), key="date_ini2").strftime('%d%b%y').upper()
+                fi = st.date_input("Desde:", value=fecha_form_default, key="date_ini2").strftime('%d%b%y').upper()
         with cf2:
             is_no = (data.get('fecha_fin') == "N/O") if es_edicion else False
             sin_fin = st.checkbox("Sin término", value=is_no, key="chk_sintermino")
@@ -1339,11 +1415,13 @@ with tab_nov:
                 ff = "N/O"
             else:
                 if es_edicion and not is_no:
-                    try: ff_val = datetime.strptime(data['fecha_fin'], '%d%b%y')
-                    except: ff_val = datetime.now()
+                    try:
+                        ff_val = datetime.strptime(data['fecha_fin'], '%d%b%y').date()
+                    except Exception:
+                        ff_val = fecha_form_default
                     ff = st.date_input("Hasta:", value=ff_val, key="date_fin").strftime('%d%b%y').upper()
                 else:
-                    ff = st.date_input("Hasta:", value=datetime.now(), key="date_fin2").strftime('%d%b%y').upper()
+                    ff = st.date_input("Hasta:", value=fecha_form_default, key="date_fin2").strftime('%d%b%y').upper()
 
         b1, b2 = st.columns([3, 1])
         with b1:
@@ -1351,10 +1429,10 @@ with tab_nov:
                 if st.button("💾 Guardar Cambios", type="primary", use_container_width=True, key="btn_save_edit"):
                     nov_id = st.session_state.novedades_lista[edit_idx]['id']
                     actualizar_novedad(nov_id, {"estado": est, "detalle": det.upper(), "fecha_ini": fi, "fecha_fin": ff, "ambito": ambito})
-                    actualizar_asistencia(FECHA_STR, data.get("orden"), estado_asistencia_por_ambito(ambito))
+                    actualizar_asistencia(FECHA_PARTE_STR, data.get("orden"), estado_asistencia_por_ambito(ambito))
                     st.session_state.estado_asistencia[data.get("orden")] = estado_asistencia_por_ambito(ambito)
                     log_movimiento("Novedades", "EDITAR NOVEDAD", data.get("orden"), data.get("nombre"), data.get("aula"), f"{est} | {AMBITOS_NOVEDAD.get(ambito, ambito)} | {fi} a {ff} | {det.upper()}")
-                    st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
+                    st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
                     st.session_state.editando_idx = None
                     st.session_state.limpiar_form_novedad_pendiente = True
                     st.success("✅ Novedad y asistencia actualizadas")
@@ -1368,10 +1446,10 @@ with tab_nov:
                         "aula": data["AULA"], "estado": est, "detalle": det.upper(),
                         "fecha_ini": fi, "fecha_fin": ff, "ambito": ambito
                     })
-                    actualizar_asistencia(FECHA_STR, int(data["ORDEN_LIMP"]), estado_asistencia_por_ambito(ambito))
+                    actualizar_asistencia(FECHA_PARTE_STR, int(data["ORDEN_LIMP"]), estado_asistencia_por_ambito(ambito))
                     st.session_state.estado_asistencia[int(data["ORDEN_LIMP"])] = estado_asistencia_por_ambito(ambito)
                     log_movimiento("Novedades", "ALTA NOVEDAD", int(data["ORDEN_LIMP"]), nombre_asp, data["AULA"], f"{est} | {AMBITOS_NOVEDAD.get(ambito, ambito)} | {fi} a {ff} | {det.upper()}")
-                    st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
+                    st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
                     st.session_state.sel_nov = None
                     st.session_state.limpiar_form_novedad_pendiente = True
                     st.success(f"✅ Novedad grabada para {nombre_asp}")
@@ -1410,8 +1488,8 @@ with tab_nov:
                         log_movimiento("Novedades", "ELIMINAR NOVEDAD", nov.get("orden"), nov.get("nombre"), nov.get("aula"), f"{nov.get('estado')} | {nov.get('fecha_ini')} a {nov.get('fecha_fin')} | {nov.get('detalle')}")
                         eliminar_novedad(nov['id'])
                         st.session_state.estado_asistencia[nov['orden']] = "PRESENTE"
-                        actualizar_asistencia(FECHA_STR, nov['orden'], "PRESENTE")
-                        st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
+                        actualizar_asistencia(FECHA_PARTE_STR, nov['orden'], "PRESENTE")
+                        st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
                         st.toast("Novedad eliminada y asistencia actualizada")
                         st.rerun()
     else:
@@ -1511,9 +1589,9 @@ with tab_alm:
                     else:
                         if st.button("➕ Marcar", key=f"m_{i}", use_container_width=True):
                             st.session_state.lista_almuerzo.add(r['ORDEN_LIMP'])
-                            agregar_almuerzo(FECHA_STR, r['ORDEN_LIMP'])
+                            agregar_almuerzo(FECHA_PARTE_STR, r['ORDEN_LIMP'])
                             if hasattr(_db_manager, "registrar_almuerzo_historial"):
-                                _db_manager.registrar_almuerzo_historial(FECHA_STR, int(r['ORDEN_LIMP']), r['NOMBRE_COMPLETO'], r['AULA'])
+                                _db_manager.registrar_almuerzo_historial(FECHA_PARTE_STR, int(r['ORDEN_LIMP']), r['NOMBRE_COMPLETO'], r['AULA'])
                             st.rerun()
     
     st.divider()
@@ -1564,13 +1642,13 @@ with tab_alm:
                 else:
                     for orden in seleccionados["Orden"].astype(int).tolist():
                         st.session_state.lista_almuerzo.discard(orden)
-                        quitar_almuerzo(FECHA_STR, orden)
+                        quitar_almuerzo(FECHA_PARTE_STR, orden)
                     st.toast(f"Se quitaron {len(seleccionados)} aspirante(s) de la lista")
                     st.rerun()
         with col_vaciar:
             if st.button("Vaciar lista completa", type="secondary", key="clear_all_lunch", use_container_width=True):
                 for orden in list(st.session_state.lista_almuerzo):
-                    quitar_almuerzo(FECHA_STR, orden)
+                    quitar_almuerzo(FECHA_PARTE_STR, orden)
                 st.session_state.lista_almuerzo.clear()
                 st.rerun()
     else:
@@ -1825,9 +1903,9 @@ with tab_res:
     st.divider()
 
     # Recarga de datos
-    st.session_state.novedades_lista = obtener_novedades(FECHA_STR)
-    st.session_state.estado_asistencia = obtener_asistencia(FECHA_STR)
-    st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_STR)
+    st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
+    st.session_state.estado_asistencia = obtener_asistencia(FECHA_PARTE_STR)
+    st.session_state.lista_almuerzo = obtener_almuerzo(FECHA_PARTE_STR)
 
     ambito_resumen = {
         n['orden']: ambito_efectivo(n)
@@ -1939,8 +2017,8 @@ with tab_res:
                     data_ausentes.append({
                         "Nombre": alumno["NOMBRE_COMPLETO"],
                         "Motivo": "AUSENTE",
-                        "Desde": FECHA_STR,
-                        "Hasta": FECHA_STR
+                        "Desde": FECHA_PARTE_STR,
+                        "Hasta": FECHA_PARTE_STR
                     })
 
     df_ausentes = pd.DataFrame(data_ausentes)

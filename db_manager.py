@@ -4,23 +4,45 @@ import hashlib
 import hmac
 from datetime import datetime
 
-DB_PATH = "parte_diario.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.getenv("SQLITE_DB_PATH") or os.path.join(BASE_DIR, "parte_diario.db")
 
 
 def get_database_url():
-    if os.getenv("DATABASE_URL"):
-        return os.getenv("DATABASE_URL")
+    """Devuelve la URL de una base externa persistente (PostgreSQL/Supabase/Neon).
 
-    try:
-        import streamlit as st
-        return st.secrets.get("DATABASE_URL")
-    except Exception:
+    Si no existe DATABASE_URL, la app usa SQLite local. SQLite local sirve para
+    pruebas en PC, pero no es confiable como almacenamiento permanente en
+    despliegues tipo Streamlit Cloud/Codespaces.
+    """
+    url = os.getenv("DATABASE_URL")
+
+    if not url:
+        try:
+            import streamlit as st
+            url = st.secrets.get("DATABASE_URL", None)
+        except Exception:
+            url = None
+
+    if not url:
         return None
+
+    url = str(url).strip()
+    if not url or "TU_PASSWORD" in url:
+        return None
+    return url
 
 
 def is_postgres():
     url = get_database_url()
     return bool(url and url.startswith(("postgresql://", "postgres://")))
+
+
+def info_base_datos():
+    """Información útil para diagnóstico dentro de la app."""
+    if is_postgres():
+        return {"motor": "PostgreSQL", "persistente": True, "ruta": None}
+    return {"motor": "SQLite local", "persistente": False, "ruta": DB_PATH}
 
 
 def get_db():
@@ -30,8 +52,10 @@ def get_db():
 
         return psycopg2.connect(get_database_url(), cursor_factory=RealDictCursor)
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
 
@@ -345,6 +369,42 @@ def actualizar_estado_usuario(id_usuario, activo):
     with get_db() as conn:
         run(conn, "UPDATE usuarios SET activo=? WHERE id=?", (1 if activo else 0, id_usuario))
         conn.commit()
+
+
+def actualizar_rol_usuario(id_usuario, rol):
+    rol = "admin" if str(rol).strip().lower() == "admin" else "usuario"
+    with get_db() as conn:
+        run(conn, "UPDATE usuarios SET rol=? WHERE id=?", (rol, id_usuario))
+        conn.commit()
+
+
+def crear_o_actualizar_usuario_admin(usuario, password, solo_admin=False):
+    """Crea o actualiza un administrador propietario desde Secrets/env.
+
+    Permite recuperar el control si se creó un admin equivocado.
+    No debe usarse con contraseñas escritas dentro del código.
+    """
+    usuario = str(usuario).strip().lower()
+    if not usuario or not password:
+        return None
+
+    existente = obtener_usuario(usuario)
+    if existente:
+        actualizar_password_usuario(existente["id"], password)
+        with get_db() as conn:
+            run(conn, "UPDATE usuarios SET rol='admin', activo=1 WHERE id=?", (existente["id"],))
+            if solo_admin:
+                run(conn, "UPDATE usuarios SET rol='usuario' WHERE usuario<>?", (usuario,))
+            conn.commit()
+        return obtener_usuario(usuario)
+
+    crear_usuario(usuario, password, rol="admin", activo=True)
+    nuevo = obtener_usuario(usuario)
+    if solo_admin:
+        with get_db() as conn:
+            run(conn, "UPDATE usuarios SET rol='usuario' WHERE usuario<>?", (usuario,))
+            conn.commit()
+    return nuevo
 
 
 def eliminar_usuario(id_usuario):
