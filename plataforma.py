@@ -431,6 +431,97 @@ def load_css(file_path):
 load_css(os.path.join(os.path.dirname(__file__), "assets", "styles.css"))
 
 
+def activar_modo_app_movil():
+    """Agrega configuración visual y PWA básica para instalar en teléfono."""
+    st.markdown(
+        """
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="theme-color" content="#F1B82D">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+        <meta name="apple-mobile-web-app-title" content="Escuadrón H">
+        <link rel="apple-touch-icon" href="/app/static/icon-192.png">
+        <link rel="manifest" href="/app/static/manifest.json">
+        <style>
+        @media (max-width: 768px) {
+            .block-container {
+                padding: 0.65rem 0.55rem 5rem 0.55rem !important;
+                max-width: 100% !important;
+            }
+            h1, h2, h3 { line-height: 1.15 !important; }
+            h1 { font-size: 1.45rem !important; }
+            h2 { font-size: 1.25rem !important; }
+            h3 { font-size: 1.08rem !important; }
+            [data-testid="stHorizontalBlock"] {
+                gap: 0.35rem !important;
+            }
+            [data-testid="column"] {
+                min-width: min(100%, 360px) !important;
+            }
+            .stButton > button, .stDownloadButton > button {
+                min-height: 42px !important;
+                border-radius: 12px !important;
+                font-size: 0.92rem !important;
+            }
+            .stTabs [data-baseweb="tab-list"] {
+                overflow-x: auto !important;
+                white-space: nowrap !important;
+                gap: 0.25rem !important;
+            }
+            .stTabs [data-baseweb="tab"] {
+                padding: 0.55rem 0.7rem !important;
+                min-width: max-content !important;
+            }
+            [data-testid="stDataFrame"], [data-testid="stTable"] {
+                font-size: 0.78rem !important;
+            }
+            .stTextInput input, .stSelectbox div, .stDateInput input, textarea {
+                font-size: 16px !important;
+            }
+            [data-testid="stSidebar"] {
+                width: min(88vw, 330px) !important;
+            }
+            .login-title { font-size: 1.65rem !important; }
+            .login-subtitle { font-size: 0.95rem !important; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    components.html(
+        """
+        <script>
+        (function() {
+            const doc = window.parent.document;
+            function ensureLink(rel, href) {
+                if (!doc.querySelector(`link[rel="${rel}"][href="${href}"]`)) {
+                    const link = doc.createElement('link');
+                    link.rel = rel;
+                    link.href = href;
+                    doc.head.appendChild(link);
+                }
+            }
+            ensureLink('manifest', '/app/static/manifest.json');
+            ensureLink('apple-touch-icon', '/app/static/icon-192.png');
+            let metaTheme = doc.querySelector('meta[name="theme-color"]');
+            if (!metaTheme) {
+                metaTheme = doc.createElement('meta');
+                metaTheme.name = 'theme-color';
+                doc.head.appendChild(metaTheme);
+            }
+            metaTheme.content = '#F1B82D';
+            if ('serviceWorker' in window.parent.navigator) {
+                window.parent.navigator.serviceWorker.register('/app/static/service-worker.js').catch(() => {});
+            }
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+activar_modo_app_movil()
+
+
 
 def asset_data_uri(relative_path):
     """Convierte un archivo local peque?o en data URI para usarlo dentro de HTML."""
