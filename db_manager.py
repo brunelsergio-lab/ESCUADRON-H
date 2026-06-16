@@ -105,6 +105,11 @@ def init_db():
         conn.commit()
 
 
+def asegurar_tablas():
+    """Asegura que las tablas existan antes de operaciones críticas."""
+    init_db()
+
+
 def _init_sqlite(conn):
     c = conn.cursor()
     c.execute("""CREATE TABLE IF NOT EXISTS novedades (
@@ -319,6 +324,7 @@ def _hash_password(password, salt=None):
 
 
 def contar_usuarios():
+    asegurar_tablas()
     with get_db() as conn:
         cur = run(conn, "SELECT COUNT(*) AS total FROM usuarios")
         row = cur.fetchone()
@@ -336,6 +342,7 @@ def crear_usuario(usuario, password, rol="usuario", activo=True):
 
 
 def obtener_usuario(usuario):
+    asegurar_tablas()
     with get_db() as conn:
         cur = run(conn, "SELECT * FROM usuarios WHERE usuario=?", (str(usuario).strip().lower(),))
         row = cur.fetchone()
@@ -384,6 +391,7 @@ def crear_o_actualizar_usuario_admin(usuario, password, solo_admin=False):
     Permite recuperar el control si se creó un admin equivocado.
     No debe usarse con contraseñas escritas dentro del código.
     """
+    asegurar_tablas()
     usuario = str(usuario).strip().lower()
     if not usuario or not password:
         return None

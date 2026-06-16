@@ -809,9 +809,10 @@ def cargar_personal():
 # ==============================================================================
 
 # Inicializar base de datos
-if 'db_iniciada' not in st.session_state:
-    init_db()
-    st.session_state.db_iniciada = True
+# Se ejecuta en cada arranque/rerun porque CREATE TABLE IF NOT EXISTS es seguro
+# y evita que, al cambiar de SQLite local a PostgreSQL, falten tablas como usuarios.
+init_db()
+st.session_state.db_iniciada = True
 
 aplicar_recuperacion_admin()
 
