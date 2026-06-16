@@ -1030,6 +1030,18 @@ def mostrar_monitor_novedades():
 
 logo_uri = asset_data_uri(APP_LOGO_FILE)
 logo_header_html = f'<img class="rrhh-logo" src="{logo_uri}" alt="Escuadrón H">' if logo_uri else '<div class="rrhh-emblem">EH</div>'
+malvinas_flag_html = """
+<span class="malvinas-flag" title="Islas Malvinas" aria-label="Islas Malvinas">
+    <svg viewBox="0 0 64 36" role="img" focusable="false" aria-hidden="true">
+        <path class="malvinas-island" d="M7 17.8c4.2-5.1 10.6-5.8 16.2-2.9 3.2 1.7 5.8 1.8 8.9.9 2.3-.7 4.7.8 4.2 3.1-.5 2.4-4 2.2-6.4 3.2-2.8 1.1-5.6 3.8-9.4 3.2-4.1-.7-5-4.2-8.7-4.2-2.8 0-6.7.8-4.8-3.3Z"/>
+        <path class="malvinas-band" d="M10.3 18.4c7.6-1.2 14.4 1.8 23.2-.4.5.6.6 1.3.1 2-8.6 2.3-15.6-.7-23.9.5-.4-.7-.2-1.5.6-2.1Z"/>
+        <path class="malvinas-island" d="M38.6 14.6c4.9-3.2 11.2-1.7 15.5 1.8 2.5 2 5.8 2.2 5.8 4.6 0 2.7-4.5 1.4-7 2.8-3.7 2-7.9 4.1-12 2.4-3.3-1.4-2.2-5.2-5.5-6.3-2.8-.9.7-3.6 3.2-5.3Z"/>
+        <path class="malvinas-band" d="M40.2 17.7c5.8.5 10.3 3 16.5 2.8.4.7.2 1.4-.4 1.9-6.3.2-11.1-2.3-17.7-2.8.1-.8.6-1.4 1.6-1.9Z"/>
+        <circle class="malvinas-sun" cx="32" cy="18" r="2.7"/>
+    </svg>
+</span>
+"""
+clock_inicial = ahora_local().strftime("%d/%m/%Y %H:%M:%S")
 
 st.markdown(f"""
 <section class="rrhh-panel">
@@ -1043,7 +1055,7 @@ st.markdown(f"""
             </div>
         </div>
         <div class="rrhh-status-box">
-            <div class="rrhh-live">En línea</div>
+            <div class="rrhh-date rrhh-clock">{malvinas_flag_html}<span id="ba-clock">{clock_inicial} Hs</span></div>
             <div class="rrhh-date">Parte: {st.session_state.fecha_reporte.strftime('%d/%m/%Y')}</div>
         </div>
     </div>
@@ -1055,6 +1067,37 @@ st.markdown(f"""
     <div class="rrhh-kpi-grid">{kpi_html}</div>
 </section>
 """, unsafe_allow_html=True)
+
+components.html(
+    """
+    <script>
+    (function () {
+        function updateBuenosAiresClock() {
+            const el = window.parent.document.getElementById("ba-clock");
+            if (!el) return;
+            const now = new Date();
+            const date = new Intl.DateTimeFormat("es-AR", {
+                timeZone: "America/Argentina/Buenos_Aires",
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric"
+            }).format(now);
+            const time = new Intl.DateTimeFormat("es-AR", {
+                timeZone: "America/Argentina/Buenos_Aires",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false
+            }).format(now);
+            el.textContent = `${date} ${time} Hs`;
+        }
+        updateBuenosAiresClock();
+        window.setInterval(updateBuenosAiresClock, 1000);
+    })();
+    </script>
+    """,
+    height=0,
+)
 
 st.divider()
 with st.expander("⚙️ Acciones rápidas y mantenimiento", expanded=False):
