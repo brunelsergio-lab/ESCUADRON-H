@@ -6,6 +6,14 @@ from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.getenv("SQLITE_DB_PATH") or os.path.join(BASE_DIR, "parte_diario.db")
+_SCHEMA_READY_FOR = None
+
+
+def firma_base_datos():
+    url = get_database_url()
+    if url:
+        return f"postgres:{url}"
+    return f"sqlite:{DB_PATH}"
 
 
 def get_database_url():
@@ -97,16 +105,22 @@ def novedad_activa_en_fecha(novedad, fecha):
 
 
 def init_db():
+    global _SCHEMA_READY_FOR
     with get_db() as conn:
         if is_postgres():
             _init_postgres(conn)
         else:
             _init_sqlite(conn)
         conn.commit()
+    _SCHEMA_READY_FOR = firma_base_datos()
 
 
-def asegurar_tablas():
-    """Asegura que las tablas existan antes de operaciones críticas."""
+def asegurar_tablas(force=False):
+    """Asegura que las tablas existan sin repetir migraciones en cada rerun."""
+    global _SCHEMA_READY_FOR
+    firma = firma_base_datos()
+    if not force and _SCHEMA_READY_FOR == firma:
+        return
     init_db()
 
 

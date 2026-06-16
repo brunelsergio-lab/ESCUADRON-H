@@ -641,9 +641,16 @@ def aplicar_recuperacion_admin():
         st.warning("OWNER_ADMIN_PASSWORD debe tener al menos 6 caracteres.")
         return
 
+    import hashlib as _hashlib
+    firma_db = getattr(_db_manager, "firma_base_datos", lambda: "default")()
+    firma_recuperacion = _hashlib.sha256(f"{firma_db}|{usuario}|{password}|{solo_admin}".encode("utf-8")).hexdigest()
+    if st.session_state.get("admin_recovery_firma") == firma_recuperacion:
+        return
+
     if hasattr(_db_manager, "crear_o_actualizar_usuario_admin"):
         _db_manager.crear_o_actualizar_usuario_admin(usuario, password, solo_admin=solo_admin)
         st.session_state.admin_recovery_applied = True
+        st.session_state.admin_recovery_firma = firma_recuperacion
 
 
 def requerir_login():
@@ -809,10 +816,12 @@ def cargar_personal():
 # ==============================================================================
 
 # Inicializar base de datos
-# Se ejecuta en cada arranque/rerun porque CREATE TABLE IF NOT EXISTS es seguro
-# y evita que, al cambiar de SQLite local a PostgreSQL, falten tablas como usuarios.
-init_db()
-st.session_state.db_iniciada = True
+# Se inicializa solo cuando cambia la base/ruta. Evita lentitud en cada rerun.
+firma_db_actual = getattr(_db_manager, "firma_base_datos", lambda: "default")()
+if st.session_state.get("db_iniciada_firma") != firma_db_actual:
+    init_db()
+    st.session_state.db_iniciada_firma = firma_db_actual
+    st.session_state.db_iniciada = True
 
 aplicar_recuperacion_admin()
 
