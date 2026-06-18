@@ -286,6 +286,9 @@ def generar_minuta_informativa():
 
     total_ausentes_minuta = ausentes_novedad | (ausentes_manuales - presentes_instituto_manuales)
 
+    df_presentes_instituto_minuta = df[
+        ~df['ORDEN_LIMP'].isin(total_ausentes_minuta)
+    ]
     df_presentes_escuadron_minuta = df[
         (~df['ORDEN_LIMP'].isin(total_ausentes_minuta)) &
         (
@@ -303,24 +306,31 @@ def generar_minuta_informativa():
     df_aop = df[df['GRADO'].map(es_aop)]
     ausentes_tercero = set(df_tercero['ORDEN_LIMP']) & total_ausentes_minuta
     ausentes_aop = set(df_aop['ORDEN_LIMP']) & total_ausentes_minuta
+    presentes_instituto_tercero = len(df_presentes_instituto_minuta[df_presentes_instituto_minuta['GRADO'].map(es_tercer_anio)])
+    presentes_instituto_aop = len(df_presentes_instituto_minuta[df_presentes_instituto_minuta['GRADO'].map(es_aop)])
+    presentes_escuadron_tercero = len(df_presentes_escuadron_minuta[df_presentes_escuadron_minuta['GRADO'].map(es_tercer_anio)])
+    presentes_escuadron_aop = len(df_presentes_escuadron_minuta[df_presentes_escuadron_minuta['GRADO'].map(es_aop)])
     formados_tercero = len(df_presentes_primera_minuta[df_presentes_primera_minuta['GRADO'].map(es_tercer_anio)])
     formados_aop = len(df_presentes_primera_minuta[df_presentes_primera_minuta['GRADO'].map(es_aop)])
-    disponibles_minuta = TOTAL_ESCUADRON - len(total_ausentes_minuta)
+    presentes_instituto_total_minuta = len(df_presentes_instituto_minuta)
+    presentes_escuadron_total_minuta = len(df_presentes_escuadron_minuta)
     primera_total_minuta = len(df_presentes_primera_minuta)
 
     lineas = [
         f'MINUTA INFORMATIVA DEL ESCUADRÓN H "CABO MARCELO GODOY" DEL DÍA {fecha_minuta}',
         "",
         f"FE: {TOTAL_ESCUADRON}",
-        f"P: {disponibles_minuta}",
-        f"A: {len(total_ausentes_minuta)}",
+        f"PRESENTES EN INSTITUTO: {presentes_instituto_total_minuta}",
+        f"PRESENTES EN ESCUADRON: {presentes_escuadron_total_minuta}",
+        f"AUSENTES / FUERA DEL INSTITUTO: {len(total_ausentes_minuta)}",
         f"FORMADOS A PRIMERA OBLIGACIÓN: {primera_total_minuta}",
         "",
         "✅ CURSO DE TERCER AÑO",
         "",
         f"FE: {len(df_tercero)}",
-        f"P: {len(df_tercero) - len(ausentes_tercero)}",
-        f"A: {len(ausentes_tercero)}",
+        f"PRESENTES EN INSTITUTO: {presentes_instituto_tercero}",
+        f"PRESENTES EN ESCUADRON: {presentes_escuadron_tercero}",
+        f"AUSENTES / FUERA DEL INSTITUTO: {len(ausentes_tercero)}",
         f"FORMADOS PRIMERA OBLIGACIÓN: {formados_tercero}",
         "",
         "OBS:",
@@ -349,8 +359,9 @@ def generar_minuta_informativa():
         "",
         "✅ CURSO AUXILIAR OPERATIVO",
         f"FE: {len(df_aop)}",
-        f"P: {len(df_aop) - len(ausentes_aop)}",
-        f"A: {len(ausentes_aop)}",
+        f"PRESENTES EN INSTITUTO: {presentes_instituto_aop}",
+        f"PRESENTES EN ESCUADRON: {presentes_escuadron_aop}",
+        f"AUSENTES / FUERA DEL INSTITUTO: {len(ausentes_aop)}",
         f"FORMADOS PRIMERA OBLIGACIÓN: {formados_aop}",
         "",
         "OBS:",
