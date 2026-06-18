@@ -9,6 +9,7 @@ import os
 from io import BytesIO
 import base64
 import json
+import unicodedata
 from html import escape
 import streamlit.components.v1 as components
 
@@ -86,6 +87,7 @@ DIAS_SEMANA = {
 ESTADOS_AUSENCIA = {"AUSENTE", "ART", "DAF", "LES", "SSD", "LAO", "AUTORIZADO", "DESCANSO DE GUARDIA"}
 ESTADOS_GUARDIA_DIURNA = {"ENTRANTE GUARDIA DIURNA", "SERVICIO DE ARMAS DIURNA"}
 ESTADOS_GUARDIA_NOCTURNA = {"ENTRANTE GUARDIA NOCTURNA", "SERVICIO DE ARMAS NOCTURNA"}
+ESTADOS_COMISION = {"COMISION", "COMISION DE SERVICIO"}
 AMBITOS_NOVEDAD = {
     "AUSENTE": "Ausente",
     "INSTITUTO": "Presente en instituto",
@@ -206,6 +208,11 @@ def numero_letras(n):
     }
     return mapa.get(int(n), str(n))
 
+def normalizar_estado_novedad(valor):
+    texto = unicodedata.normalize("NFKD", str(valor or "").strip().upper())
+    return "".join(ch for ch in texto if not unicodedata.combining(ch))
+
+
 def formatear_lista_novedades(novedades, estado, curso_fn):
     filtradas = [n for n in novedades if n['estado'] == estado and curso_fn(n.get('grado', ''))]
     if not filtradas:
@@ -218,7 +225,11 @@ def formatear_lista_novedades(novedades, estado, curso_fn):
     return "\n".join(lineas)
 
 def formatear_servicio(novedades, estados, curso_fn, titulo):
-    filtradas = [n for n in novedades if n['estado'] in estados and curso_fn(n.get('grado', ''))]
+    estados_norm = {normalizar_estado_novedad(e) for e in estados}
+    filtradas = [
+        n for n in novedades
+        if normalizar_estado_novedad(n.get('estado')) in estados_norm and curso_fn(n.get('grado', ''))
+    ]
     if not filtradas:
         return f"▫️ {titulo}:"
     plural = "ASPIRANTES" if len(filtradas) != 1 else "ASPIRANTE"
@@ -316,6 +327,8 @@ def generar_minuta_informativa():
         "",
         "▫️ INGRESO HORARIO DIFERENCIADO:",
         formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_tercer_anio),
+        formatear_servicio(novedades, ESTADOS_COMISION, es_tercer_anio, "COMISION DE SERVICIO"),
+        "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_tercer_anio, "SERVICIO DE ARMAS DIURNA"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, es_tercer_anio, "DESCANSO DE SERVICIO DE ARMAS NOCTURNO"),
@@ -344,6 +357,8 @@ def generar_minuta_informativa():
         "",
         "▫️ INGRESO EN HORARIO DIFERENCIAL:",
         formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_aop),
+        formatear_servicio(novedades, ESTADOS_COMISION, es_aop, "COMISION DE SERVICIO"),
+        "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_aop, "SERVICIO DE ARMAS DIURNO"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, es_aop, "DESCANSO DE SERVICIO DE ARMAS NOCTURNO"),
