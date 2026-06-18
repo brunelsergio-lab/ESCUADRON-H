@@ -921,6 +921,14 @@ def obtener_formulario_por_slug_y_token(slug, token):
     return form
 
 
+def eliminar_formulario(id_formulario):
+    asegurar_tablas()
+    with get_db() as conn:
+        run(conn, "DELETE FROM formularios_respuestas WHERE formulario_id=?", (id_formulario,))
+        run(conn, "DELETE FROM formularios WHERE id=?", (id_formulario,))
+        conn.commit()
+
+
 def guardar_respuesta_formulario(formulario_id, orden, apellido_nombres, dni, ce, aula, datos):
     asegurar_tablas()
     ahora = _now_text()

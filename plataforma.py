@@ -1737,7 +1737,7 @@ def excel_formulario_control(formulario, df_completaron, df_no_completaron):
 
 def panel_formularios_dinamicos(df_personal):
     st.markdown("### Formularios")
-    st.caption("Crea enlaces publicos con token, controla respuestas y exporta el resumen.")
+    st.caption("Paso 1: creá el formulario. Paso 2: diseñá los campos. Paso 3: revisá la vista previa y compartí el link.")
 
     pin_cfg = str(obtener_secret_o_env("FORM_ADMIN_PIN", "") or "").strip()
     if not pin_cfg:
@@ -1756,11 +1756,12 @@ def panel_formularios_dinamicos(df_personal):
     if not info_bd_form.get("persistente"):
         st.warning("Base local SQLite: sirve para pruebas. Para uso real multiusuario conviene DATABASE_URL en Secrets.")
 
-    with st.expander("Crear formulario", expanded=False):
+    st.markdown("#### 1. Crear o seleccionar formulario")
+    with st.expander("Crear formulario nuevo", expanded=False):
         with st.form("crear_formulario_dinamico"):
-            nombre = st.text_input("Nombre interno", placeholder="Ej: Licencia invierno 2026")
+            nombre = st.text_input("Nombre del formulario", placeholder="Ej: Talles 2026")
             slug = st.text_input("Slug / codigo", placeholder="Opcional: se genera desde el nombre").strip().lower()
-            descripcion = st.text_area("Descripcion opcional", placeholder="Texto breve que vera el aspirante")
+            descripcion = st.text_area("Descripcion opcional", placeholder="Texto breve que vera el personal")
             activo = st.toggle("Activo", value=True)
             crear = st.form_submit_button("Crear formulario", type="primary", use_container_width=True)
         if crear:
@@ -1786,6 +1787,7 @@ def panel_formularios_dinamicos(df_personal):
     etiqueta = st.selectbox("Formulario", list(opciones.keys()), key="form_admin_selector")
     formulario = opciones[etiqueta]
 
+    st.markdown("#### 2. Datos del formulario seleccionado")
     c_link, c_estado = st.columns([3, 1])
     with c_link:
         st.text_input("Link publico", value=link_publico_formulario(formulario), key=f"link_form_{formulario['id']}")
@@ -1793,7 +1795,7 @@ def panel_formularios_dinamicos(df_personal):
     with c_estado:
         st.metric("Estado", "Activo" if int(formulario.get("activo", 0)) == 1 else "Inactivo")
 
-    with st.expander("Editar formulario", expanded=False):
+    with st.expander("Editar datos generales", expanded=False):
         with st.form(f"editar_formulario_{formulario['id']}"):
             nuevo_nombre = st.text_input("Nombre", value=formulario.get("nombre", ""))
             nuevo_slug = st.text_input("Slug", value=formulario.get("slug", ""))
@@ -1814,7 +1816,48 @@ def panel_formularios_dinamicos(df_personal):
                 st.rerun()
 
     campos = obtener_campos_formulario(formulario)
-    with st.expander("Campos del formulario", expanded=True):
+    st.markdown("#### 3. Diseñar campos")
+    st.caption("Agregá solamente los datos que querés pedir. Los datos base del personal se validan aparte y quedan bloqueados.")
+    with st.expander("Agregar nuevo campo", expanded=True):
+        with st.form(f"agregar_campo_{formulario['id']}"):
+            n1, n2 = st.columns(2)
+            with n1:
+                nueva_etiqueta = st.text_input("Etiqueta del campo", placeholder="Talle de pantalón")
+                nueva_clave = st.text_input("Clave interna", placeholder="Se genera si queda vacio")
+                nuevo_tipo = st.selectbox("Tipo", list(TIPOS_CAMPOS_FORMULARIO.keys()))
+                nueva_ayuda = st.text_input("Texto de ayuda", placeholder="Ej: Seleccione el talle correspondiente")
+            with n2:
+                nuevo_obl = st.toggle("Obligatorio", value=True)
+                nuevo_may = st.toggle("Convertir a mayusculas", value=True)
+                nuevo_sin_puntos = st.toggle("No permitir puntos", value=False)
+                nuevo_solo_nums = st.toggle("Solo numeros", value=False)
+                nuevas_opciones = st.text_input("Opciones si corresponde", placeholder="S, M, L, XL, XXL")
+            agregar_campo = st.form_submit_button("Agregar campo al formulario", type="primary", use_container_width=True)
+        if agregar_campo:
+            if not nueva_etiqueta.strip():
+                st.error("La etiqueta del campo es obligatoria.")
+            else:
+                clave_final = nueva_clave.strip() or clave_campo_desde_etiqueta(nueva_etiqueta)
+                claves_existentes = {c["clave"] for c in campos}
+                if clave_campo_desde_etiqueta(clave_final) in claves_existentes:
+                    st.error("Ya existe un campo con esa clave interna.")
+                else:
+                    campos.append(normalizar_campo_formulario({
+                        "etiqueta": nueva_etiqueta,
+                        "clave": clave_final,
+                        "tipo": TIPOS_CAMPOS_FORMULARIO[nuevo_tipo],
+                        "obligatorio": nuevo_obl,
+                        "mayusculas": nuevo_may,
+                        "sin_puntos": nuevo_sin_puntos,
+                        "solo_numeros": nuevo_solo_nums,
+                        "opciones": nuevas_opciones,
+                        "ayuda": nueva_ayuda,
+                    }))
+                    _db_manager.actualizar_formulario(formulario["id"], reglas_json=reglas_desde_campos(campos))
+                    st.success("Campo agregado.")
+                    st.rerun()
+
+    with st.expander("Campos creados: editar, ordenar o eliminar", expanded=True):
         if not campos:
             st.info("Este formulario todavía no tiene campos configurados.\nAgregue campos desde el panel de administración.")
 
@@ -1867,45 +1910,7 @@ def panel_formularios_dinamicos(df_personal):
                     st.success("Campo actualizado.")
                     st.rerun()
 
-        st.markdown("#### Agregar campo")
-        with st.form(f"agregar_campo_{formulario['id']}"):
-            n1, n2 = st.columns(2)
-            with n1:
-                nueva_etiqueta = st.text_input("Etiqueta del campo", placeholder="Lugar de licencia")
-                nueva_clave = st.text_input("Clave interna", placeholder="Se genera si queda vacio")
-                nuevo_tipo = st.selectbox("Tipo", list(TIPOS_CAMPOS_FORMULARIO.keys()))
-                nueva_ayuda = st.text_input("Texto de ayuda", placeholder="Opcional")
-            with n2:
-                nuevo_obl = st.toggle("Obligatorio", value=True)
-                nuevo_may = st.toggle("Convertir a mayusculas", value=True)
-                nuevo_sin_puntos = st.toggle("No permitir puntos", value=False)
-                nuevo_solo_nums = st.toggle("Solo numeros", value=False)
-                nuevas_opciones = st.text_input("Opciones si corresponde", placeholder="SI, NO, OTRA")
-            agregar_campo = st.form_submit_button("Agregar campo", type="primary", use_container_width=True)
-        if agregar_campo:
-            if not nueva_etiqueta.strip():
-                st.error("La etiqueta del campo es obligatoria.")
-            else:
-                clave_final = nueva_clave.strip() or clave_campo_desde_etiqueta(nueva_etiqueta)
-                claves_existentes = {c["clave"] for c in campos}
-                if clave_campo_desde_etiqueta(clave_final) in claves_existentes:
-                    st.error("Ya existe un campo con esa clave interna.")
-                else:
-                    campos.append(normalizar_campo_formulario({
-                        "etiqueta": nueva_etiqueta,
-                        "clave": clave_final,
-                        "tipo": TIPOS_CAMPOS_FORMULARIO[nuevo_tipo],
-                        "obligatorio": nuevo_obl,
-                        "mayusculas": nuevo_may,
-                        "sin_puntos": nuevo_sin_puntos,
-                        "solo_numeros": nuevo_solo_nums,
-                        "opciones": nuevas_opciones,
-                        "ayuda": nueva_ayuda,
-                    }))
-                    _db_manager.actualizar_formulario(formulario["id"], reglas_json=reglas_desde_campos(campos))
-                    st.success("Campo agregado.")
-                    st.rerun()
-
+    st.markdown("#### 4. Vista previa y control")
     with st.expander("Vista previa del formulario", expanded=False):
         st.caption("Así se verán los campos personalizados debajo de los datos base bloqueados.")
         if not campos:
@@ -1913,6 +1918,20 @@ def panel_formularios_dinamicos(df_personal):
         else:
             for campo in campos:
                 renderizar_campo_formulario(campo, "", f"preview_{formulario['id']}")
+
+    with st.expander("Eliminar formulario", expanded=False):
+        st.warning("Esta acción borra el formulario y todas sus respuestas. No modifica alumnos.csv ni otros módulos.")
+        confirmacion = st.text_input(
+            f"Para eliminar escribí exactamente: {formulario.get('slug', '')}",
+            key=f"confirm_del_form_{formulario['id']}"
+        )
+        if st.button("Eliminar formulario definitivamente", key=f"delete_form_{formulario['id']}", type="primary", use_container_width=True):
+            if confirmacion.strip() == str(formulario.get("slug", "")).strip():
+                _db_manager.eliminar_formulario(formulario["id"])
+                st.success("Formulario eliminado.")
+                st.rerun()
+            else:
+                st.error("La confirmación no coincide con el slug del formulario.")
 
     respuestas = _db_manager.obtener_respuestas_formulario(formulario["id"])
     df_completaron, df_no_completaron = preparar_control_formulario(df_personal, respuestas, campos)
