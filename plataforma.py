@@ -622,6 +622,198 @@ def generar_minuta_informativa(formato="Visual WhatsApp / Celular"):
         return generar_minuta_formal_clasica()
     return generar_minuta_visual_whatsapp()
 
+
+def datos_base_minuta():
+    novedades = obtener_novedades(FECHA_PARTE_STR)
+    estado_asistencia_actual = obtener_asistencia(FECHA_PARTE_STR)
+    st.session_state.novedades_lista = novedades
+    st.session_state.estado_asistencia = estado_asistencia_actual
+
+    ambito_minuta = {n['orden']: ambito_efectivo(n) for n in novedades}
+    ausentes_novedad = {orden for orden, ambito in ambito_minuta.items() if ambito == "AUSENTE"}
+    presentes_instituto_manuales = {
+        orden for orden, estado in estado_asistencia_actual.items()
+        if estado in {"PRESENTE", "PRESENTE EN INSTITUTO", "PRESENTE EN ESCUADRÓN", "PRESENTE EN ESCUADR?N"}
+    }
+    presentes_escuadron_novedad = {orden for orden, ambito in ambito_minuta.items() if ambito == "ESCUADRON"}
+    presentes_escuadron_manuales = {
+        orden for orden, estado in estado_asistencia_actual.items()
+        if estado in {"PRESENTE", "PRESENTE EN ESCUADRÓN", "PRESENTE EN ESCUADR?N"}
+    }
+    ausentes_manuales = {orden for orden, estado in estado_asistencia_actual.items() if estado == "AUSENTE"}
+    total_ausentes_minuta = ausentes_novedad | (ausentes_manuales - presentes_instituto_manuales)
+
+    df_presentes_instituto_minuta = df[~df['ORDEN_LIMP'].isin(total_ausentes_minuta)]
+    df_presentes_escuadron_minuta = df[
+        (~df['ORDEN_LIMP'].isin(total_ausentes_minuta)) &
+        (
+            df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
+            df['ORDEN_LIMP'].isin(presentes_escuadron_manuales) |
+            ((~df['ORDEN_LIMP'].isin(ambito_minuta.keys())) &
+             (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)))
+        )
+    ]
+    df_presentes_primera_minuta = df_presentes_escuadron_minuta[
+        df_presentes_escuadron_minuta['AULA'].map(aula_ingresa_primera_obligacion)
+    ]
+    return {
+        "novedades": novedades,
+        "ausentes": total_ausentes_minuta,
+        "presentes_instituto": df_presentes_instituto_minuta,
+        "presentes_escuadron": df_presentes_escuadron_minuta,
+        "formados": df_presentes_primera_minuta,
+    }
+
+
+def numero_letras_parte_formacion(cantidad):
+    cantidad = int(cantidad)
+    unidades = {
+        0: "CERO", 1: "UN", 2: "DOS", 3: "TRES", 4: "CUATRO", 5: "CINCO",
+        6: "SEIS", 7: "SIETE", 8: "OCHO", 9: "NUEVE", 10: "DIEZ",
+        11: "ONCE", 12: "DOCE", 13: "TRECE", 14: "CATORCE", 15: "QUINCE",
+        16: "DIECISEIS", 17: "DIECISIETE", 18: "DIECIOCHO", 19: "DIECINUEVE",
+        20: "VEINTE"
+    }
+    if cantidad in unidades:
+        return unidades[cantidad]
+    especiales = {
+        21: "VEINTIUN", 22: "VEINTIDOS", 23: "VEINTITRES", 24: "VEINTICUATRO",
+        25: "VEINTICINCO", 26: "VEINTISEIS", 27: "VEINTISIETE",
+        28: "VEINTIOCHO", 29: "VEINTINUEVE"
+    }
+    if cantidad in especiales:
+        return especiales[cantidad]
+    decenas = {
+        30: "TREINTA", 40: "CUARENTA", 50: "CINCUENTA", 60: "SESENTA",
+        70: "SETENTA", 80: "OCHENTA", 90: "NOVENTA"
+    }
+    if cantidad in decenas:
+        return decenas[cantidad]
+    if 30 < cantidad < 100:
+        decena = (cantidad // 10) * 10
+        unidad = cantidad % 10
+        return f"{decenas[decena]} Y {unidades[unidad]}"
+    return str(cantidad)
+
+
+def grado_parte_formacion(novedad):
+    return "ASP III" if es_tercer_anio(novedad.get("grado", "")) else "ASP I"
+
+
+def cantidad_parte_formacion(cantidad):
+    return f"{numero_letras_parte_formacion(cantidad)} ({cantidad:02d})"
+
+
+def filtrar_novedades_parte_formacion(novedades, estados):
+    estados_norm = {normalizar_estado_novedad(estado) for estado in estados}
+    return [
+        novedad for novedad in novedades
+        if normalizar_estado_novedad(novedad.get("estado")) in estados_norm
+    ]
+
+
+def linea_personal_parte_formacion(novedad, incluir_fechas=False):
+    nombre = str(novedad.get("nombre") or "").strip()
+    detalle = str(novedad.get("detalle") or "").strip()
+    linea = f"{grado_parte_formacion(novedad)} {nombre}".strip()
+    extras = []
+    if detalle:
+        extras.append(detalle)
+    if incluir_fechas:
+        extras.append(f"DESDE {novedad.get('fecha_ini', '-')}")
+        extras.append(f"HASTA {novedad.get('fecha_fin', '-')}")
+    if extras:
+        linea = f"{linea} {' | '.join(extras)}"
+    return f"{linea}."
+
+
+def bloque_personal_parte_formacion(titulo, novedades, estados, incluir_fechas=False):
+    filtradas = filtrar_novedades_parte_formacion(novedades, estados)
+    lineas = [titulo]
+    if not filtradas:
+        lineas.append("")
+        return "\n".join(lineas)
+    plural = "ASPIRANTES" if len(filtradas) != 1 else "ASPIRANTE"
+    lineas.append(f"{cantidad_parte_formacion(len(filtradas))} {plural}.")
+    lineas.append("")
+    for idx, novedad in enumerate(filtradas, 1):
+        lineas.append(f"{idx}. {linea_personal_parte_formacion(novedad, incluir_fechas)}")
+    return "\n".join(lineas)
+
+
+def generar_parte_formacion():
+    fecha_parte = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
+    datos = datos_base_minuta()
+    novedades = datos["novedades"]
+
+    servicio_diurno = filtrar_novedades_parte_formacion(novedades, ESTADOS_GUARDIA_DIURNA)
+    lineas_servicio_diurno = ["SERVICIO DE ARMAS DIURNO:-"]
+    if servicio_diurno:
+        lineas_servicio_diurno.append(
+            f"{cantidad_parte_formacion(len(servicio_diurno))} ASPIRANTES DE III Y I AÑO."
+        )
+        lineas_servicio_diurno.append("")
+        for idx, novedad in enumerate(servicio_diurno, 1):
+            lineas_servicio_diurno.append(f"{idx}. {linea_personal_parte_formacion(novedad)}")
+    else:
+        lineas_servicio_diurno.append("")
+
+    sanitarias = []
+    for titulo, estados in [
+        ("SSD:", {"SSD"}),
+        ("ART:", {"ART"}),
+        ("DAF:", {"DAF"}),
+    ]:
+        bloque = bloque_personal_parte_formacion(titulo, novedades, estados, incluir_fechas=True)
+        if bloque.strip() != titulo:
+            sanitarias.append(bloque)
+    if not sanitarias:
+        sanitarias.append("SSD:")
+
+    bloques = [
+        f'PARTE DE FORMACIÓN DEL ESCUADRÓN "H", DEL DIA {fecha_parte}',
+        "",
+        f"🔸FE: {TOTAL_ESCUADRON}",
+        f"🔶P: {len(datos['presentes_instituto'])}",
+        f"🔸A: {len(datos['ausentes'])}",
+        f"🔹FORMADOS : {len(datos['formados'])}",
+        "",
+        "🗓️ NOVEDADES:",
+        "",
+        "\n".join(lineas_servicio_diurno),
+        "",
+        bloque_personal_parte_formacion(
+            "SERVICIO DE ARMAS NOCTURNO (PRESENTES):",
+            novedades,
+            ESTADOS_GUARDIA_NOCTURNA
+        ),
+        "",
+        bloque_personal_parte_formacion(
+            "DESCANSO DE SERVICIO DE ARMA NOCTURNO",
+            novedades,
+            {"DESCANSO DE GUARDIA"}
+        ),
+        "",
+        "📍LICENCIAS:",
+        "",
+        bloque_personal_parte_formacion("LAO:", novedades, {"LAO"}, incluir_fechas=True),
+        "",
+        bloque_personal_parte_formacion("LES:", novedades, {"LES"}, incluir_fechas=True),
+        "",
+        bloque_personal_parte_formacion(
+            "AUTORIZADOS:",
+            novedades,
+            {"AUTORIZADO", *ESTADOS_COMISION},
+            incluir_fechas=True
+        ),
+        "",
+        "▫️ NOVEDADES SANITARIAS",
+        "\n\n".join(sanitarias),
+        "",
+        "EL RESTO DE LOS ASPIRANTES A SUBOFICIALES DE I, III AÑO PERTENECIENTES AL ESCUADRÓN “H”, SE ENCUENTRAN SIN NOVEDAD.-",
+    ]
+    return "\n".join(bloques)
+
 def normalizar_aula(aula):
     return str(aula).strip().upper().replace(" ", "")
 
@@ -3380,6 +3572,22 @@ with tab_res:
         file_name=nombre_minuta,
         mime="text/plain; charset=utf-8",
         key=f"descargar_minuta_{st.session_state.fecha_reporte.strftime('%Y%m%d')}_{len(minuta_bytes)}",
+        on_click="ignore",
+        use_container_width=True
+    )
+
+    st.divider()
+    st.subheader("Parte de formación")
+    parte_formacion_texto = generar_parte_formacion()
+    st.text_area("Parte de formación generado automáticamente desde Novedades", value=parte_formacion_texto, height=460)
+    nombre_parte_formacion = f"PARTE_FORMACION_ESCUADRON_H_{st.session_state.fecha_reporte.strftime('%d%m%Y')}.txt"
+    parte_formacion_bytes = parte_formacion_texto.encode("utf-8-sig")
+    st.download_button(
+        "Descargar parte de formación (.txt)",
+        data=parte_formacion_bytes,
+        file_name=nombre_parte_formacion,
+        mime="text/plain; charset=utf-8",
+        key=f"descargar_parte_formacion_{st.session_state.fecha_reporte.strftime('%Y%m%d')}_{len(parte_formacion_bytes)}",
         on_click="ignore",
         use_container_width=True
     )
