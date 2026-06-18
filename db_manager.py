@@ -816,6 +816,9 @@ def obtener_todos_contactos():
         return fetch_all(cur)
 
 # --- FORMULARIOS DINAMICOS ---
+FORMULARIOS_SCHEMA_VERSION = "2026-06-18"
+
+
 def _json_dumps(data):
     return json.dumps(data or {}, ensure_ascii=False)
 
