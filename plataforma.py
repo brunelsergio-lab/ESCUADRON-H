@@ -258,7 +258,7 @@ def formatear_ingreso_diferenciado(df_presentes_escuadron, curso_fn):
     return "\n".join(lineas) if lineas else ".-"
 
 
-def generar_minuta_informativa():
+def generar_minuta_formal_clasica():
     fecha_minuta = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
 
     # La minuta debe reflejar la base actual, no el estado que quedo en pantalla.
@@ -390,6 +390,234 @@ def generar_minuta_informativa():
         formatear_lista_novedades(novedades, "DAF", es_aop),
     ]
     return "\n".join(lineas)
+
+
+
+def separador_minuta():
+    return "\u2501" * 22
+
+
+def grado_minuta(nov):
+    return "ASP III A\u00d1O" if es_tercer_anio(nov.get('grado', '')) else "ASP I"
+
+
+def filtrar_novedades_minuta(novedades, estados, curso_fn):
+    estados_norm = {normalizar_estado_novedad(e) for e in estados}
+    return [
+        n for n in novedades
+        if normalizar_estado_novedad(n.get('estado')) in estados_norm and curso_fn(n.get('grado', ''))
+    ]
+
+
+def bloque_resumen_general_minuta(total, presentes_instituto, presentes_escuadron, ausentes, formados):
+    return "\n".join([
+        "\U0001F530 RESUMEN GENERAL",
+        f"\U0001F465 FE: {total}",
+        f"\U0001F3EB Presentes en Instituto: {presentes_instituto}",
+        f"\U0001F7E2 Presentes en Escuadr\u00f3n: {presentes_escuadron}",
+        f"\U0001F534 Ausentes / Fuera del Instituto: {ausentes}",
+        f"\U0001F9CD Formados a 1ra Obligaci\u00f3n: {formados}",
+    ])
+
+
+def lineas_ingresos_diferenciados_minuta(df_presentes_escuadron, curso_fn):
+    lineas = []
+    for aula in AULAS_UNICAS:
+        cfg = st.session_state.get("horarios_config", {}).get(aula, {})
+        hora = normalizar_hora_ingreso(cfg.get("ent_m", "06:00"))
+        if hora == "06:00":
+            continue
+        alumnos = df_presentes_escuadron[
+            (df_presentes_escuadron["AULA"] == aula) &
+            (df_presentes_escuadron["GRADO"].map(curso_fn))
+        ]
+        cant = len(alumnos)
+        if cant:
+            lineas.append(f"\u25ab\ufe0f Aula {aula}: {cant} aspirante(s) \u2014 {hora} hs")
+    return lineas
+
+
+def bloque_lista_operativa_minuta(titulo, icono, novedades, estados, curso_fn, etiqueta_detalle="Detalle"):
+    filtradas = filtrar_novedades_minuta(novedades, estados, curso_fn)
+    if not filtradas:
+        return ""
+    lineas = [f"{icono} {titulo}", f"Total: {len(filtradas)} aspirante(s)", ""]
+    for idx, nov in enumerate(filtradas, 1):
+        detalle = str(nov.get('detalle') or '').strip()
+        fechas = f"Desde: {nov.get('fecha_ini', '-')} | Hasta: {nov.get('fecha_fin', '-')}"
+        lineas.append(f"{idx}. {grado_minuta(nov)} {nov['nombre']}")
+        if detalle:
+            lineas.append(f"   {etiqueta_detalle}: {detalle} | {fechas}")
+        else:
+            lineas.append(f"   {fechas}")
+    return "\n".join(lineas)
+
+
+def bloque_novedades_operativas_minuta(novedades, df_presentes_escuadron, curso_fn):
+    bloques = ["\U0001F4DD NOVEDADES OPERATIVAS"]
+
+    ingresos = lineas_ingresos_diferenciados_minuta(df_presentes_escuadron, curso_fn)
+    if ingresos:
+        bloques.append("\n".join(["\U0001F558 INGRESOS DIFERENCIADOS", *ingresos]))
+
+    for bloque in [
+        bloque_lista_operativa_minuta("COMISI\u00d3N DE SERVICIO", "\U0001F396\ufe0f", novedades, ESTADOS_COMISION, curso_fn, "Comisi\u00f3n"),
+        bloque_lista_operativa_minuta("SERVICIO DE ARMAS DIURNO", "\U0001F6E1\ufe0f", novedades, ESTADOS_GUARDIA_DIURNA, curso_fn),
+        bloque_lista_operativa_minuta("DESCANSO DE SERVICIO DE ARMAS NOCTURNO", "\U0001F319", novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, curso_fn),
+    ]:
+        if bloque:
+            bloques.append(bloque)
+
+    if len(bloques) == 1:
+        bloques.append("Sin novedades operativas.")
+    return "\n\n".join(bloques)
+
+
+def bloque_sanitario_categoria_minuta(titulo, novedades, estado, curso_fn):
+    filtradas = filtrar_novedades_minuta(novedades, {estado}, curso_fn)
+    if not filtradas:
+        return ""
+    lineas = [f"\u25ab\ufe0f {titulo}", ""]
+    for idx, nov in enumerate(filtradas, 1):
+        detalle = str(nov.get('detalle') or '').strip()
+        fechas = f"Desde: {nov.get('fecha_ini', '-')} | Hasta: {nov.get('fecha_fin', '-')}"
+        lineas.append(f"{idx}. {grado_minuta(nov)} {nov['nombre']}")
+        if detalle:
+            lineas.append(f"   {detalle} | {fechas}")
+        else:
+            lineas.append(f"   {fechas}")
+    return "\n".join(lineas)
+
+
+def bloque_novedades_sanitarias_minuta(novedades, curso_fn):
+    bloques = []
+    categorias = [
+        ("SIN SERVICIO EN DOMICILIO", "SSD"),
+        ("ART", "ART"),
+        ("DAF", "DAF"),
+        ("LAO", "LAO"),
+        ("LES", "LES"),
+        ("AUTORIZADO", "AUTORIZADO"),
+    ]
+    for titulo, estado in categorias:
+        bloque = bloque_sanitario_categoria_minuta(titulo, novedades, estado, curso_fn)
+        if bloque:
+            bloques.append(bloque)
+    if not bloques:
+        return "\U0001F3E5 NOVEDADES SANITARIAS\nSin otras novedades sanitarias."
+    return "\U0001F3E5 NOVEDADES SANITARIAS\n\n" + "\n\n".join(bloques)
+
+
+def bloque_curso_minuta(titulo, fe, presentes_instituto, presentes_escuadron, ausentes, formados, novedades, df_presentes_escuadron, curso_fn):
+    return "\n".join([
+        separador_minuta(),
+        f"\u2705 {titulo}",
+        separador_minuta(),
+        "",
+        "\U0001F4CA PRESENTISMO:",
+        f"\U0001F465 FE: {fe}",
+        f"\U0001F3EB Presentes Instituto: {presentes_instituto}",
+        f"\U0001F7E2 Presentes Escuadr\u00f3n: {presentes_escuadron}",
+        f"\U0001F534 Ausentes: {ausentes}",
+        f"\U0001F9CD Formados 1ra Obligaci\u00f3n: {formados}",
+        "",
+        bloque_novedades_operativas_minuta(novedades, df_presentes_escuadron, curso_fn),
+        "",
+        bloque_novedades_sanitarias_minuta(novedades, curso_fn),
+    ])
+
+
+def generar_minuta_visual_whatsapp():
+    fecha_minuta = st.session_state.fecha_reporte.strftime('%d%b%y').upper()
+
+    novedades = obtener_novedades(FECHA_PARTE_STR)
+    estado_asistencia_actual = obtener_asistencia(FECHA_PARTE_STR)
+    st.session_state.novedades_lista = novedades
+    st.session_state.estado_asistencia = estado_asistencia_actual
+
+    ambito_minuta = {n['orden']: ambito_efectivo(n) for n in novedades}
+    ausentes_novedad = {orden for orden, ambito in ambito_minuta.items() if ambito == "AUSENTE"}
+    presentes_instituto_manuales = {
+        orden for orden, estado in estado_asistencia_actual.items()
+        if estado in {"PRESENTE", "PRESENTE EN INSTITUTO", "PRESENTE EN ESCUADR?N"}
+    }
+    presentes_escuadron_novedad = {orden for orden, ambito in ambito_minuta.items() if ambito == "ESCUADRON"}
+    presentes_escuadron_manuales = {
+        orden for orden, estado in estado_asistencia_actual.items()
+        if estado in {"PRESENTE", "PRESENTE EN ESCUADR?N"}
+    }
+    ausentes_manuales = {orden for orden, estado in estado_asistencia_actual.items() if estado == "AUSENTE"}
+    total_ausentes_minuta = ausentes_novedad | (ausentes_manuales - presentes_instituto_manuales)
+
+    df_presentes_instituto_minuta = df[~df['ORDEN_LIMP'].isin(total_ausentes_minuta)]
+    df_presentes_escuadron_minuta = df[
+        (~df['ORDEN_LIMP'].isin(total_ausentes_minuta)) &
+        (
+            df['ORDEN_LIMP'].isin(presentes_escuadron_novedad) |
+            df['ORDEN_LIMP'].isin(presentes_escuadron_manuales) |
+            ((~df['ORDEN_LIMP'].isin(ambito_minuta.keys())) &
+             (~df['ORDEN_LIMP'].isin(presentes_instituto_manuales)))
+        )
+    ]
+    df_presentes_primera_minuta = df_presentes_escuadron_minuta[
+        df_presentes_escuadron_minuta['AULA'].map(aula_ingresa_primera_obligacion)
+    ]
+
+    df_tercero = df[df['GRADO'].map(es_tercer_anio)]
+    df_aop = df[df['GRADO'].map(es_aop)]
+    ausentes_tercero = set(df_tercero['ORDEN_LIMP']) & total_ausentes_minuta
+    ausentes_aop = set(df_aop['ORDEN_LIMP']) & total_ausentes_minuta
+    presentes_instituto_tercero = len(df_presentes_instituto_minuta[df_presentes_instituto_minuta['GRADO'].map(es_tercer_anio)])
+    presentes_instituto_aop = len(df_presentes_instituto_minuta[df_presentes_instituto_minuta['GRADO'].map(es_aop)])
+    presentes_escuadron_tercero = len(df_presentes_escuadron_minuta[df_presentes_escuadron_minuta['GRADO'].map(es_tercer_anio)])
+    presentes_escuadron_aop = len(df_presentes_escuadron_minuta[df_presentes_escuadron_minuta['GRADO'].map(es_aop)])
+    formados_tercero = len(df_presentes_primera_minuta[df_presentes_primera_minuta['GRADO'].map(es_tercer_anio)])
+    formados_aop = len(df_presentes_primera_minuta[df_presentes_primera_minuta['GRADO'].map(es_aop)])
+
+    bloques = [
+        "\U0001F4CC MINUTA INFORMATIVA",
+        "ESCUADR\u00d3N H \u201cCABO MARCELO GODOY\u201d",
+        f"\U0001F4C5 Fecha: {fecha_minuta}",
+        "",
+        bloque_resumen_general_minuta(
+            TOTAL_ESCUADRON,
+            len(df_presentes_instituto_minuta),
+            len(df_presentes_escuadron_minuta),
+            len(total_ausentes_minuta),
+            len(df_presentes_primera_minuta),
+        ),
+        "",
+        bloque_curso_minuta(
+            "CURSO DE TERCER A\u00d1O",
+            len(df_tercero),
+            presentes_instituto_tercero,
+            presentes_escuadron_tercero,
+            len(ausentes_tercero),
+            formados_tercero,
+            novedades,
+            df_presentes_escuadron_minuta,
+            es_tercer_anio,
+        ),
+        "",
+        bloque_curso_minuta(
+            "CURSO AUXILIAR OPERATIVO",
+            len(df_aop),
+            presentes_instituto_aop,
+            presentes_escuadron_aop,
+            len(ausentes_aop),
+            formados_aop,
+            novedades,
+            df_presentes_escuadron_minuta,
+            es_aop,
+        ),
+    ]
+    return "\n".join(bloques)
+
+
+def generar_minuta_informativa(formato="Visual WhatsApp / Celular"):
+    if formato == "Formal cl\u00e1sico":
+        return generar_minuta_formal_clasica()
+    return generar_minuta_visual_whatsapp()
 
 def normalizar_aula(aula):
     return str(aula).strip().upper().replace(" ", "")
@@ -2426,8 +2654,15 @@ with tab_res:
 with tab_res:
     st.divider()
     st.subheader("Minuta informativa")
-    minuta_texto = generar_minuta_informativa()
-    st.text_area("Minuta generada automáticamente desde Novedades", value=minuta_texto, height=520)
+    formato_minuta = st.radio(
+        "Formato de minuta:",
+        ["Visual WhatsApp / Celular", "Formal cl\u00e1sico"],
+        index=0,
+        horizontal=True,
+        key="formato_minuta",
+    )
+    minuta_texto = generar_minuta_informativa(formato_minuta)
+    st.text_area("Minuta generada autom?ticamente desde Novedades", value=minuta_texto, height=560)
     nombre_minuta = f"MINUTA_ESCUADRON_H_{st.session_state.fecha_reporte.strftime('%d%m%Y')}.txt"
     minuta_bytes = minuta_texto.encode("utf-8-sig")
     st.download_button(
