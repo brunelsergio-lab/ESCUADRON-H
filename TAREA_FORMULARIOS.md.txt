@@ -1,0 +1,386 @@
+Necesito modificar mi aplicación Streamlit, principalmente `plataforma.py` y si corresponde `db_manager.py`, para agregar un módulo de formularios dinámicos dentro de la pestaña **Legajos y contactos**.
+
+Importante:
+No romper ni modificar las funciones ya existentes de:
+
+* login;
+* Supabase/PostgreSQL;
+* persistencia;
+* asistencia;
+* novedades;
+* minuta visual;
+* reportes existentes;
+* plan de llamada existente.
+
+Solo agregar el nuevo módulo de formularios dinámicos y su persistencia en base de datos.
+
+Objetivo:
+Quiero que en la pestaña **Legajos y contactos** exista una sección llamada:
+
+📋 Formularios
+
+Dentro de esa sección quiero poder crear formularios públicos con nombre editable, por ejemplo:
+
+* lao26
+* licencia26
+* plan_llamada
+* datos_licencia
+
+Cada formulario debe tener su propio link público para compartir.
+
+Ejemplo de link:
+
+```text
+https://TU-APP.streamlit.app/?formulario=lao26&token=TOKEN_GENERADO
+```
+
+El personal ingresa al link, valida su identidad con DNI o CE, completa los campos solicitados y esos datos deben guardarse en Supabase/PostgreSQL para que no se borren.
+
+Necesito que el módulo tenga estas partes:
+
+1. PIN de administración
+
+En la pestaña **Legajos y contactos**, para crear o editar formularios, pedir un PIN.
+
+El PIN debe leerse desde Secrets o variable de entorno:
+
+```toml
+FORM_ADMIN_PIN = "1234"
+```
+
+Si no está configurado, mostrar aviso:
+
+“Falta configurar FORM_ADMIN_PIN en Secrets.”
+
+El PIN no debe aparecer nunca en pantalla.
+
+2. Crear formulario
+
+Después de ingresar el PIN correcto, permitir crear un formulario con:
+
+* Nombre interno del formulario.
+* Slug o código corto, ejemplo: `lao26`.
+* Descripción opcional.
+* Estado activo/inactivo.
+* Token automático seguro.
+* Campos requeridos.
+* Reglas de validación.
+
+Al crear un formulario, guardar todo en base de datos.
+
+3. Base de datos
+
+Agregar tablas nuevas en `db_manager.py`, compatibles con SQLite y PostgreSQL.
+
+Tabla sugerida:
+
+```sql
+formularios (
+    id,
+    slug,
+    nombre,
+    descripcion,
+    token,
+    activo,
+    reglas_json,
+    creado_en,
+    actualizado_en
+)
+```
+
+Tabla de respuestas:
+
+```sql
+formularios_respuestas (
+    id,
+    formulario_id,
+    orden,
+    apellido_nombres,
+    dni,
+    ce,
+    aula,
+    datos_json,
+    creado_en,
+    actualizado_en
+)
+```
+
+En PostgreSQL usar `JSONB` si es posible.
+En SQLite usar `TEXT` guardando JSON serializado.
+
+Agregar funciones en `db_manager.py` como:
+
+```python
+crear_formulario(...)
+actualizar_formulario(...)
+obtener_formulario_por_slug(...)
+obtener_formulario_por_slug_y_token(...)
+listar_formularios()
+guardar_respuesta_formulario(...)
+obtener_respuestas_formulario(...)
+```
+
+4. Formulario público
+
+Cuando la URL tenga:
+
+```text
+?formulario=lao26&token=TOKEN
+```
+
+la app debe abrir directamente el formulario público, sin pedir login de administrador.
+
+Debe validar:
+
+* Que el formulario exista.
+* Que esté activo.
+* Que el token sea correcto.
+* Que el DNI o CE exista en `alumnos.csv`.
+
+Después de validar DNI o CE, mostrar bloqueados los datos ya cargados:
+
+* Apellido y nombres.
+* DNI.
+* CE.
+* Aula.
+* Orden.
+
+Esos datos base no deben modificarse.
+
+Luego mostrar los campos para completar.
+
+5. Campos iniciales que debe permitir este formulario
+
+Para el formulario tipo licencia/LAO, usar estos campos:
+
+* Viaja en transporte público: SI/NO.
+* Viaja en vehículo particular: SI/NO.
+* Si viaja en vehículo particular:
+
+  * Marca.
+  * Modelo.
+  * Dominio.
+  * Titular del vehículo.
+* Lugar de licencia.
+* Dirección.
+* Barrio.
+* Calle.
+* Número.
+* Unidad más próxima de GN.
+* Teléfono particular.
+* Teléfono de emergencia para licencia.
+* Observaciones.
+
+6. Reglas de validación
+
+Implementar validaciones antes de guardar.
+
+Reglas obligatorias:
+
+* Los textos deben guardarse en MAYÚSCULAS.
+* En campos de texto, convertir automáticamente a mayúsculas.
+* DNI debe aceptar solo números, sin puntos, sin espacios y sin guiones.
+* Teléfonos deben aceptar números, sin puntos.
+* Si un campo numérico contiene punto `.`, mostrar error y no guardar.
+* Si un campo numérico contiene letras, mostrar error y no guardar.
+* Dominio/patente debe guardarse en mayúsculas y sin espacios innecesarios.
+* Si “Viaja en vehículo particular” es “SI”, entonces marca, modelo, dominio y titular son obligatorios.
+* Si “Viaja en vehículo particular” es “NO”, no exigir datos del vehículo.
+* Campos obligatorios:
+
+  * lugar de licencia;
+  * dirección;
+  * barrio;
+  * calle;
+  * número;
+  * unidad más próxima de GN;
+  * teléfono particular;
+  * teléfono de emergencia para licencia;
+  * transporte público SI/NO;
+  * vehículo particular SI/NO.
+
+Crear funciones auxiliares como:
+
+```python
+normalizar_mayusculas(valor)
+validar_solo_numeros(valor, nombre_campo)
+validar_sin_puntos(valor, nombre_campo)
+validar_obligatorio(valor, nombre_campo)
+```
+
+7. Ver registros cargados
+
+En **Legajos y contactos**, dentro de **Formularios**, después de ingresar el PIN, quiero poder:
+
+* Ver lista de formularios creados.
+* Ver si están activos o inactivos.
+* Copiar el link público.
+* Editar el nombre del formulario.
+* Cambiar el slug si no hay conflicto.
+* Activar/desactivar formulario.
+* Ver respuestas cargadas.
+* Descargar respuestas en Excel.
+
+El Excel debe incluir:
+
+* Orden.
+* Apellido y nombres.
+* DNI.
+* CE.
+* Aula.
+* Fecha y hora de carga.
+* Todos los campos del formulario.
+
+8. Si una persona vuelve a cargar el formulario
+
+Si el mismo aspirante carga nuevamente el mismo formulario, no duplicar innecesariamente.
+
+Usar una lógica tipo:
+
+* mismo `formulario_id`;
+* mismo `orden`.
+
+Entonces actualizar la respuesta anterior.
+
+También guardar `actualizado_en`.
+
+9. Seguridad
+
+* No mostrar tokens secretos salvo dentro del panel protegido con PIN.
+* No guardar datos solo en `st.session_state`.
+* Toda respuesta debe guardarse en Supabase/PostgreSQL mediante `db_manager.py`.
+* Si la app está usando SQLite local, mostrar advertencia de que no es persistente.
+* Mantener compatibilidad con PostgreSQL usando `DATABASE_URL`.
+
+10. Interfaz sugerida
+
+En Legajos y contactos:
+
+```text
+📋 Formularios
+
+PIN de administración: [****]
+
+[Crear nuevo formulario]
+
+Formulario: lao26
+Estado: Activo
+Link: ?formulario=lao26&token=xxxx
+[Copiar link]
+[Ver registros]
+[Editar]
+[Desactivar]
+[Exportar Excel]
+```
+
+11. Verificación final
+
+Después de modificar:
+
+* Ejecutar:
+
+```bash
+python -m py_compile plataforma.py db_manager.py
+```
+
+* No modificar `requirements.txt` salvo que sea estrictamente necesario.
+* No romper el formato visual nuevo de la minuta.
+* No eliminar el formulario anterior si existe; si se reemplaza, que quede integrado dentro del nuevo sistema de formularios dinámicos.
+* Entregar resumen de archivos modificados y funciones agregadas.
+
+Agregar también un panel de control para cada formulario creado.
+
+Dentro de la pestaña **Legajos y contactos → Formularios**, después de ingresar el PIN de administración, necesito poder seleccionar un formulario, por ejemplo `lao26`, y ver un control completo de carga.
+
+El control debe comparar:
+
+* La base completa de personal cargada en `alumnos.csv`.
+* Las respuestas guardadas en la tabla `formularios_respuestas`.
+
+La comparación debe hacerse por `orden`.
+Si existe una respuesta para el mismo `formulario_id` y el mismo `orden`, entonces ese aspirante cuenta como “Completó”.
+Si no existe respuesta, cuenta como “No completó”.
+
+Mostrar métricas arriba:
+
+* Total esperados.
+* Total que completaron.
+* Total que no completaron.
+* Porcentaje de avance.
+* Última fecha/hora de carga registrada.
+
+Ejemplo visual:
+
+```text id="6ur18j"
+📊 CONTROL DEL FORMULARIO: LAO26
+
+👥 Total esperados: 138
+✅ Completaron: 92
+❌ No completaron: 46
+📈 Avance: 66.7 %
+🕘 Última carga: 18JUN26 - 21:35 hs
+```
+
+Agregar dos tablas:
+
+1. Tabla **✅ Completaron**
+
+Columnas:
+
+* Orden.
+* Apellido y nombres.
+* DNI.
+* CE.
+* Aula.
+* Fecha de carga.
+* Fecha de actualización.
+* Datos cargados.
+
+2. Tabla **❌ No completaron**
+
+Columnas:
+
+* Orden.
+* Apellido y nombres.
+* DNI.
+* CE.
+* Aula.
+
+Agregar filtros:
+
+* Buscar por apellido, DNI, CE u orden.
+* Filtrar por aula.
+* Filtrar por curso si el dato está disponible.
+* Ver todos / solo completaron / solo pendientes.
+
+Agregar botón:
+
+```text id="5ytifo"
+📥 Exportar control del formulario
+```
+
+El Excel debe tener 3 hojas:
+
+1. `RESUMEN`
+2. `COMPLETARON`
+3. `NO_COMPLETARON`
+
+En la hoja `RESUMEN` incluir:
+
+* Nombre del formulario.
+* Slug.
+* Total esperados.
+* Total completaron.
+* Total no completaron.
+* Porcentaje de avance.
+* Fecha de exportación.
+
+Importante:
+
+* No duplicar respuestas si una persona carga dos veces. Debe actualizar la respuesta anterior usando `formulario_id + orden`.
+* No contar como completado si solo abrió el formulario pero no guardó.
+* No modificar `alumnos.csv`.
+* No tocar login, asistencia, novedades, minuta ni persistencia existente.
+* Todo debe quedar guardado y consultado desde Supabase/PostgreSQL.
+* Si no hay respuestas todavía, mostrar:
+  “Aún no hay registros cargados para este formulario.”

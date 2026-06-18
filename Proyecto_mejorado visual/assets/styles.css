@@ -1,0 +1,658 @@
+/* ==========================================================
+   Estilo visual principal - Escuadrón H
+   Este archivo centraliza el diseño para evitar CSS repetido
+   dentro de plataforma.py.
+   ========================================================== */
+
+:root {
+    --eh-bg: #0f180c;
+    --eh-bg-2: #15220f;
+    --eh-panel: rgba(18, 29, 15, 0.94);
+    --eh-panel-2: rgba(255, 255, 255, 0.045);
+    --eh-primary: #4b5320;
+    --eh-primary-soft: #6f7d32;
+    --eh-gold: #d7e51f;
+    --eh-gold-soft: #d8b55a;
+    --eh-text: #f8fafc;
+    --eh-muted: #cbd5e1;
+    --eh-soft: #e8ead7;
+    --eh-border: rgba(232, 234, 215, 0.20);
+    --eh-danger: #c05646;
+    --eh-ok: #8fa650;
+}
+
+html, body, [data-testid="stAppViewContainer"] {
+    background:
+        radial-gradient(circle at top left, rgba(215, 229, 31, 0.09), transparent 28%),
+        linear-gradient(135deg, #0b1208 0%, #111827 52%, #121a0d 100%) !important;
+}
+
+[data-testid="stAppViewContainer"] > .main {
+    background: transparent !important;
+}
+
+.main .block-container {
+    padding-top: 1.5rem !important;
+    padding-bottom: 3rem !important;
+    max-width: 1500px !important;
+}
+
+h1, h2, h3 {
+    letter-spacing: -0.02em;
+}
+
+p, label, span, div {
+    font-feature-settings: "kern";
+}
+
+hr {
+    margin: 1.35rem 0 !important;
+    border-color: rgba(232, 234, 215, 0.18) !important;
+}
+
+/* ---------- Sidebar ---------- */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #101b0c 0%, #18240f 54%, #0e1510 100%) !important;
+    border-right: 1px solid rgba(215, 229, 31, 0.12) !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stImage"] img {
+    border-radius: 14px !important;
+    border: 1px solid rgba(215, 229, 31, 0.18) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25) !important;
+}
+
+.sidebar-card {
+    border: 1px solid rgba(232, 234, 215, 0.16);
+    background: rgba(255, 255, 255, 0.045);
+    border-radius: 14px;
+    padding: 0.85rem;
+    margin: 0.75rem 0 1rem 0;
+}
+
+.sidebar-card span {
+    display: block;
+    color: var(--eh-soft);
+    font-size: 0.70rem;
+    text-transform: uppercase;
+    letter-spacing: 0.11em;
+    font-weight: 800;
+}
+
+.sidebar-card strong {
+    display: block;
+    color: var(--eh-text);
+    font-size: 0.98rem;
+    margin-top: 0.22rem;
+}
+
+.sidebar-card small {
+    color: var(--eh-muted);
+    display: block;
+    margin-top: 0.35rem;
+}
+
+/* ---------- Login ---------- */
+.login-hero {
+    text-align: center;
+    max-width: 520px;
+    margin: 1rem auto 0.75rem auto;
+    padding: 0.5rem;
+}
+
+.login-title {
+    color: #ffffff;
+    font-size: 1.65rem;
+    font-weight: 900;
+    margin: 0.25rem 0 0.15rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.login-subtitle {
+    color: var(--eh-muted);
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.login-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid rgba(215, 229, 31, 0.25);
+    color: var(--eh-gold);
+    background: rgba(215, 229, 31, 0.08);
+    border-radius: 999px;
+    padding: 0.38rem 0.7rem;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.login-card-note {
+    border: 1px solid var(--eh-border);
+    background: rgba(255, 255, 255, 0.045);
+    border-radius: 16px;
+    padding: 0.85rem 1rem;
+    color: var(--eh-soft);
+    font-size: 0.92rem;
+    margin-bottom: 0.8rem;
+}
+
+[data-testid="stForm"] {
+    border: 1px solid rgba(232, 234, 215, 0.18) !important;
+    background: rgba(15, 23, 42, 0.42) !important;
+    border-radius: 16px !important;
+    padding: 1.05rem !important;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.20) !important;
+}
+
+/* ---------- Botones y controles ---------- */
+.stButton > button,
+[data-testid="stFormSubmitButton"] button,
+.stDownloadButton > button {
+    border-radius: 999px !important;
+    min-height: 2.55rem !important;
+    font-weight: 800 !important;
+    letter-spacing: 0.01em !important;
+    border: 1px solid rgba(215, 229, 31, 0.22) !important;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease !important;
+}
+
+.stButton > button:hover,
+[data-testid="stFormSubmitButton"] button:hover,
+.stDownloadButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(0,0,0,0.22) !important;
+    border-color: rgba(215, 229, 31, 0.42) !important;
+}
+
+input, textarea, [data-baseweb="select"] > div {
+    border-radius: 10px !important;
+}
+
+/* ---------- Pestañas ---------- */
+div[data-testid="stTabs"] > div[role="tablist"] {
+    gap: 0.45rem !important;
+    border-bottom: 1px solid rgba(232, 234, 215, 0.12) !important;
+    padding-bottom: 0.45rem !important;
+}
+
+div[data-testid="stTabs"] button[role="tab"],
+div[data-testid="stTabs"] button[data-baseweb="tab"] {
+    border-radius: 999px !important;
+    border: 1px solid rgba(232, 234, 215, 0.12) !important;
+    background: rgba(255, 255, 255, 0.045) !important;
+    padding: 0.68rem 0.95rem !important;
+    font-weight: 850 !important;
+}
+
+div[data-testid="stTabs"] button[aria-selected="true"],
+div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
+    background: linear-gradient(135deg, #4b5320, #6f7d32) !important;
+    color: #ffffff !important;
+    border-color: rgba(215, 229, 31, 0.45) !important;
+}
+
+/* ---------- Panel institucional y KPIs ---------- */
+.header-title {
+    display: none !important;
+}
+
+.rrhh-panel {
+    background:
+        linear-gradient(135deg, rgba(47, 55, 23, 0.98) 0%, rgba(75, 83, 32, 0.94) 48%, rgba(17, 24, 39, 0.98) 100%);
+    border: 1px solid rgba(215, 229, 31, 0.28);
+    border-radius: 18px;
+    padding: 1.15rem;
+    margin: 0.15rem 0 1rem 0;
+    box-shadow: 0 20px 46px rgba(0, 0, 0, 0.30);
+}
+
+.rrhh-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 0.95rem;
+}
+
+.rrhh-brand {
+    display: flex;
+    gap: 0.8rem;
+    align-items: center;
+}
+
+.rrhh-emblem {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    display: grid;
+    place-items: center;
+    background: rgba(232, 234, 215, 0.15);
+    border: 1px solid rgba(232, 234, 215, 0.30);
+    color: #ffffff;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.10);
+}
+
+.rrhh-eyebrow {
+    margin: 0 0 0.2rem 0;
+    color: var(--eh-gold);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 900;
+}
+
+.rrhh-title {
+    margin: 0;
+    color: #ffffff;
+    font-size: 1.45rem;
+    line-height: 1.12;
+    font-weight: 950;
+}
+
+.rrhh-title-short {
+    display: none;
+}
+
+.rrhh-subtitle {
+    margin: 0.28rem 0 0 0;
+    color: var(--eh-soft);
+    font-size: 0.93rem;
+}
+
+.rrhh-status-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    align-items: flex-end;
+}
+
+.rrhh-date,
+.rrhh-live {
+    border: 1px solid rgba(232, 234, 215, 0.34);
+    border-radius: 999px;
+    color: #ffffff;
+    background: rgba(17, 24, 39, 0.42);
+    padding: 0.34rem 0.7rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    font-weight: 800;
+}
+
+.rrhh-live {
+    color: var(--eh-gold);
+}
+
+.rrhh-access {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+    margin-bottom: 0.85rem;
+}
+
+.rrhh-access-card {
+    border: 1px solid rgba(232, 234, 215, 0.22);
+    background: rgba(17, 24, 39, 0.34);
+    border-radius: 14px;
+    padding: 0.7rem 0.8rem;
+    min-height: 72px;
+}
+
+.rrhh-access-card span {
+    display: block;
+    color: var(--eh-gold);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 900;
+}
+
+.rrhh-access-card strong {
+    display: block;
+    color: #ffffff;
+    margin-top: 0.25rem;
+    font-size: 0.96rem;
+}
+
+.rrhh-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 0.65rem;
+}
+
+.rrhh-kpi {
+    border: 1px solid rgba(232, 234, 215, 0.16);
+    background: rgba(255, 255, 255, 0.052);
+    border-radius: 14px;
+    padding: 0.78rem;
+    min-height: 96px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+}
+
+.rrhh-kpi span {
+    display: block;
+    color: var(--eh-soft);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 900;
+}
+
+.rrhh-kpi strong {
+    display: block;
+    color: #ffffff;
+    font-size: 1.75rem;
+    line-height: 1.1;
+    margin-top: 0.35rem;
+}
+
+.rrhh-kpi small {
+    display: block;
+    color: var(--eh-muted);
+    font-size: 0.78rem;
+    margin-top: 0.3rem;
+}
+
+.rrhh-kpi-ok { border-left: 4px solid var(--eh-ok); }
+.rrhh-kpi-warn { border-left: 4px solid var(--eh-gold-soft); }
+.rrhh-kpi-alert { border-left: 4px solid var(--eh-danger); }
+.rrhh-kpi-neutral { border-left: 4px solid rgba(215, 229, 31, 0.42); }
+
+/* ---------- Monitor de novedades ---------- */
+.nov-monitor {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(15, 23, 42, 0.62);
+    border-radius: 16px;
+    padding: 0.8rem;
+    margin: 0 0 0.9rem 0;
+}
+
+.nov-monitor-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.58rem;
+}
+
+.nov-monitor-title {
+    color: #ffffff;
+    font-size: 0.84rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.nov-monitor-sub {
+    color: var(--eh-muted);
+    font-size: 0.76rem;
+    white-space: nowrap;
+}
+
+.nov-monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 0.55rem;
+}
+
+.nov-card {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    background: rgba(255, 255, 255, 0.045);
+    border-radius: 14px;
+    padding: 0.68rem 0.75rem;
+    min-height: 76px;
+}
+
+.nov-card > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.nov-card span {
+    color: var(--eh-muted);
+    font-size: 0.74rem;
+    font-weight: 800;
+    line-height: 1.15;
+    text-transform: uppercase;
+}
+
+.nov-card strong {
+    color: #ffffff;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.nov-card p {
+    margin: 0.45rem 0 0 0;
+    color: #94a3b8;
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+
+.nov-card b {
+    color: #e5e7eb;
+}
+
+/* ---------- Tablas y contenedores ---------- */
+[data-testid="stDataFrame"],
+[data-testid="stTable"],
+[data-testid="stExpander"] {
+    border-radius: 14px !important;
+}
+
+.stDataFrame table th,
+.stDataFrame table td {
+    padding: 0.62rem 0.9rem !important;
+    font-size: 0.95rem !important;
+}
+
+[data-testid="stExpander"] {
+    border: 1px solid rgba(232, 234, 215, 0.14) !important;
+    background: rgba(255, 255, 255, 0.025) !important;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 720px) {
+    .main .block-container {
+        padding-top: 0.55rem !important;
+        padding-left: 0.55rem !important;
+        padding-right: 0.55rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    div[data-testid="stTabs"] > div[role="tablist"] {
+        gap: 0.35rem !important;
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
+        padding-bottom: 0.35rem !important;
+    }
+
+    div[data-testid="stTabs"] button[role="tab"],
+    div[data-testid="stTabs"] button[data-baseweb="tab"] {
+        min-width: max-content !important;
+        padding: 0.62rem 0.85rem !important;
+        font-size: 0.9rem !important;
+    }
+
+    .rrhh-panel {
+        padding: 0.62rem;
+        margin: 0 0 0.65rem 0;
+        box-shadow: none;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #344018 0%, #111827 100%);
+    }
+
+    .rrhh-head {
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .rrhh-brand { gap: 0.45rem; min-width: 0; }
+    .rrhh-emblem { width: 34px; height: 34px; border-radius: 9px; font-size: 0.78rem; flex: 0 0 auto; }
+    .rrhh-eyebrow { display: none; }
+    .rrhh-title { font-size: 1rem; line-height: 1.1; white-space: nowrap; overflow: visible; max-width: none; }
+    .rrhh-title-full { display: none; }
+    .rrhh-title-short { display: inline; }
+    .rrhh-subtitle { display: none; }
+    .rrhh-status-box { align-items: flex-end; margin-top: 0; gap: 0.25rem; }
+    .rrhh-live { display: none; }
+    .rrhh-date { padding: 0.24rem 0.48rem; font-size: 0.7rem; }
+    .rrhh-access { display: none; }
+    .rrhh-kpi-grid { grid-template-columns: repeat(4, minmax(68px, 1fr)); gap: 0.35rem; }
+    .rrhh-kpi { min-height: 58px; padding: 0.45rem; border-radius: 10px; }
+    .rrhh-kpi span { font-size: 0.58rem; letter-spacing: 0.03em; }
+    .rrhh-kpi strong { font-size: 1.08rem; margin-top: 0.15rem; }
+    .rrhh-kpi small { display: none; }
+    .nov-monitor { padding: 0.55rem; position: sticky; top: 0.2rem; z-index: 10; }
+    .nov-monitor-head { display: block; margin-bottom: 0.4rem; }
+    .nov-monitor-sub { display: block; margin-top: 0.15rem; }
+    .nov-monitor-grid { display: flex; overflow-x: auto; gap: 0.4rem; padding-bottom: 0.1rem; }
+    .nov-card { min-width: 210px; flex: 0 0 auto; min-height: 62px; padding: 0.52rem; }
+    .nov-card strong { font-size: 1.2rem; }
+    .login-title { font-size: 1.2rem; }
+}
+
+/* ==========================================================
+   Segunda mejora visual: look más premium y limpio
+   ========================================================== */
+
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+
+[data-testid="stToolbar"] {
+    right: 1rem !important;
+}
+
+[data-testid="stImage"] {
+    display: flex;
+    justify-content: center;
+}
+
+.login-hero + div[data-testid="stVerticalBlock"] {
+    max-width: 520px;
+}
+
+.login-hero img,
+[data-testid="stSidebar"] img {
+    object-fit: contain !important;
+}
+
+.rrhh-logo {
+    width: 76px;
+    height: 76px;
+    object-fit: contain;
+    border-radius: 18px;
+    padding: 0.3rem;
+    background: rgba(8, 15, 7, 0.35);
+    border: 1px solid rgba(215, 229, 31, 0.32);
+    box-shadow: 0 16px 34px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
+    flex: 0 0 auto;
+}
+
+.rrhh-panel {
+    position: relative;
+    overflow: hidden;
+}
+
+.rrhh-panel::before {
+    content: "";
+    position: absolute;
+    inset: -40% -10% auto auto;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(215,229,31,.18), transparent 62%);
+    pointer-events: none;
+}
+
+.rrhh-panel::after {
+    content: "";
+    position: absolute;
+    left: 1rem;
+    right: 1rem;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(215,229,31,.65), transparent);
+    pointer-events: none;
+}
+
+.rrhh-head,
+.rrhh-access,
+.rrhh-kpi-grid {
+    position: relative;
+    z-index: 1;
+}
+
+.rrhh-kpi,
+.rrhh-access-card,
+.nov-card,
+.sidebar-card,
+[data-testid="stForm"] {
+    backdrop-filter: blur(14px);
+}
+
+.rrhh-kpi {
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.rrhh-kpi:hover {
+    transform: translateY(-2px);
+    border-color: rgba(215, 229, 31, .38);
+    background: rgba(255,255,255,.075);
+}
+
+/* Botones de peligro menos agresivos, pero visibles */
+button[kind="secondary"]:has(div:contains("Reiniciar")) {
+    border-color: rgba(192,86,70,.35) !important;
+}
+
+/* Formularios y entradas con mejor contraste */
+[data-testid="stTextInput"] input,
+[data-testid="stTextArea"] textarea,
+[data-testid="stNumberInput"] input,
+[data-testid="stDateInput"] input {
+    background: rgba(6, 12, 7, 0.52) !important;
+    border: 1px solid rgba(232,234,215,.18) !important;
+}
+
+[data-testid="stTextInput"] input:focus,
+[data-testid="stTextArea"] textarea:focus,
+[data-testid="stNumberInput"] input:focus,
+[data-testid="stDateInput"] input:focus {
+    border-color: rgba(215,229,31,.55) !important;
+    box-shadow: 0 0 0 1px rgba(215,229,31,.28) !important;
+}
+
+/* Expander de mantenimiento */
+[data-testid="stExpander"] details summary {
+    font-weight: 850 !important;
+    letter-spacing: .01em !important;
+}
+
+/* Tablas con estilo más dashboard */
+[data-testid="stDataFrame"] {
+    box-shadow: 0 12px 34px rgba(0,0,0,.18) !important;
+    border: 1px solid rgba(232,234,215,.12) !important;
+}
+
+@media (max-width: 720px) {
+    .rrhh-logo {
+        width: 42px;
+        height: 42px;
+        border-radius: 11px;
+        padding: .2rem;
+    }
+    .rrhh-kpi-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .rrhh-kpi span {
+        font-size: .55rem;
+    }
+}

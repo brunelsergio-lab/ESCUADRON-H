@@ -1,0 +1,25 @@
+{
+  "name": "Escuadrón H",
+  "short_name": "Escuadrón H",
+  "description": "Gestión de parte diario, novedades, ubicación y reportes del Escuadrón H.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0B1608",
+  "theme_color": "#F1B82D",
+  "icons": [
+    {
+      "src": "/app/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
