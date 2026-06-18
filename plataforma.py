@@ -9,6 +9,9 @@ import os
 from io import BytesIO
 import base64
 import json
+import hmac
+import re
+import secrets as py_secrets
 import unicodedata
 from html import escape
 import streamlit.components.v1 as components
@@ -1283,6 +1286,484 @@ def mostrar_formulario_plan_publico(df_personal):
             st.info("Ya podés cerrar esta pantalla.")
             st.stop()
 
+
+def formulario_dinamico_publico_solicitado():
+    return bool(str(obtener_query_param("formulario", "")).strip())
+
+
+def _texto_limpio(valor):
+    try:
+        if pd.isna(valor):
+            return ""
+    except Exception:
+        pass
+    txt = str(valor or "").strip()
+    return "" if txt.lower() == "nan" else txt
+
+
+def _solo_digitos(valor):
+    return re.sub(r"\D+", "", str(valor or ""))
+
+
+def _mayus(valor):
+    return str(valor or "").strip().upper()
+
+
+def _dominio(valor):
+    return re.sub(r"\s+", "", _mayus(valor))
+
+
+def _validar_numero(nombre, valor, obligatorio=True):
+    texto = str(valor or "").strip()
+    if not texto and not obligatorio:
+        return ""
+    if not texto:
+        return f"Falta completar {nombre}."
+    if not texto.isdigit():
+        return f"{nombre} debe tener solo numeros, sin puntos, letras ni espacios."
+    return ""
+
+
+def reglas_formulario_licencia():
+    return {
+        "tipo": "licencia_contacto",
+        "campos_obligatorios": [
+            "lugar_licencia", "direccion", "barrio", "calle", "numero",
+            "unidad_proxima_gn", "telefono_particular", "telefono_emergencia",
+        ],
+        "vehiculo_condicional": ["vehiculo_marca", "vehiculo_modelo", "vehiculo_dominio", "vehiculo_titular"],
+    }
+
+
+def link_publico_formulario(formulario):
+    slug = str(formulario.get("slug", "")).strip()
+    token = str(formulario.get("token", "")).strip()
+    base = str(obtener_secret_o_env("APP_PUBLIC_URL", "") or "").strip().rstrip("/")
+    final = f"?formulario={slug}&token={token}"
+    return f"{base}/{final}" if base else final
+
+
+def buscar_personal_por_identificador(df_personal, identificador):
+    ident = str(identificador or "").strip().upper().replace(" ", "")
+    if not ident:
+        return df_personal.iloc[0:0]
+    df_busqueda = df_personal.copy()
+    df_busqueda["_DNI"] = df_busqueda["DNI"].astype(str).str.upper().str.replace(" ", "", regex=False).str.replace(".", "", regex=False).str.replace("-", "", regex=False)
+    df_busqueda["_CE"] = df_busqueda["CE"].astype(str).str.upper().str.replace(" ", "", regex=False).str.replace(".", "", regex=False).str.replace("-", "", regex=False)
+    return df_busqueda[(df_busqueda["_DNI"] == ident) | (df_busqueda["_CE"] == ident)]
+
+
+def mostrar_formulario_dinamico_publico(df_personal):
+    slug = str(obtener_query_param("formulario", "")).strip().lower()
+    token = str(obtener_query_param("token", "")).strip()
+    formulario = _db_manager.obtener_formulario_por_slug_y_token(slug, token)
+
+    st.markdown("""
+    <div class="login-hero">
+        <span class="login-badge">Formulario seguro</span>
+        <h1 class="login-title">Escuadrón H</h1>
+        <p class="login-subtitle">Completá los datos solicitados. Se valida tu DNI o CE contra la base del escuadrón.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if not formulario:
+        st.error("El enlace del formulario no es valido o el token no corresponde.")
+        st.stop()
+    if int(formulario.get("activo", 0)) != 1:
+        st.warning("Este formulario se encuentra desactivado.")
+        st.stop()
+
+    st.subheader(str(formulario.get("nombre", "Formulario")).strip())
+    if formulario.get("descripcion"):
+        st.caption(str(formulario.get("descripcion")))
+
+    identificador = st.text_input("DNI o CE", placeholder="Escribi tu DNI o CE sin puntos", key=f"formpub_ident_{slug}")
+    if not identificador.strip():
+        st.stop()
+
+    encontrados = buscar_personal_por_identificador(df_personal, identificador)
+    if encontrados.empty:
+        st.warning("No se encontró personal con ese DNI/CE. Verificá el número o comunicate con administración.")
+        st.stop()
+
+    if len(encontrados) > 1:
+        opciones = [f"{int(r['ORDEN_LIMP'])} - {r['NOMBRE_COMPLETO']} - {r['AULA']}" for _, r in encontrados.iterrows()]
+        seleccionado = st.selectbox("Se encontró más de un registro. Seleccioná el correcto:", opciones)
+        orden_sel = int(seleccionado.split(" - ", 1)[0])
+        row = encontrados[encontrados["ORDEN_LIMP"].astype(int) == orden_sel].iloc[0]
+    else:
+        row = encontrados.iloc[0]
+
+    orden = int(row["ORDEN_LIMP"])
+    respuestas_previas = _db_manager.obtener_respuestas_formulario(formulario["id"])
+    previa = next((r for r in respuestas_previas if int(r.get("orden", 0)) == orden), None)
+    datos_previos = previa.get("datos", {}) if previa else {}
+
+    nombre_base = _texto_limpio(row["NOMBRE_COMPLETO"]).upper()
+    dni_base = _solo_digitos(row["DNI"])
+    ce_base = _solo_digitos(row["CE"])
+    aula_base = _texto_limpio(row["AULA"]).upper()
+
+    st.success(f"Datos validados: {nombre_base} | Aula {aula_base} | Orden {orden}")
+    st.caption("Apellido/nombres, DNI, CE, Aula y Orden se toman de alumnos.csv y quedan bloqueados.")
+
+    def idx_si_no(valor, defecto="NO"):
+        return 0 if str(valor or defecto).strip().upper() == "SI" else 1
+
+    with st.form(f"formulario_dinamico_{formulario['id']}_{orden}"):
+        st.markdown("### Datos de base")
+        st.text_input("Apellido y nombres", value=nombre_base, disabled=True)
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.text_input("Orden", value=str(orden), disabled=True)
+        with c2:
+            st.text_input("DNI", value=dni_base, disabled=True)
+        with c3:
+            st.text_input("CE", value=ce_base, disabled=True)
+        with c4:
+            st.text_input("Aula", value=aula_base, disabled=True)
+
+        st.markdown("### Datos para completar")
+        ctrans, cveh = st.columns(2)
+        with ctrans:
+            viaja_transporte = st.radio("Viaja en transporte publico", ["SI", "NO"], index=idx_si_no(datos_previos.get("viaja_transporte_publico")), horizontal=True)
+        with cveh:
+            viaja_vehiculo = st.radio("Viaja en vehiculo particular", ["SI", "NO"], index=idx_si_no(datos_previos.get("viaja_vehiculo_particular")), horizontal=True)
+
+        c5, c6 = st.columns(2)
+        with c5:
+            lugar_licencia = st.text_input("Lugar licencia", value=datos_previos.get("lugar_licencia", ""))
+            barrio = st.text_input("Barrio", value=datos_previos.get("barrio", ""))
+            numero = st.text_input("Numero", value=datos_previos.get("numero", ""))
+            telefono_particular = st.text_input("Telefono particular", value=datos_previos.get("telefono_particular", ""))
+        with c6:
+            direccion = st.text_input("Direccion", value=datos_previos.get("direccion", ""))
+            calle = st.text_input("Calle", value=datos_previos.get("calle", ""))
+            unidad_proxima_gn = st.text_input("Unidad GN proxima", value=datos_previos.get("unidad_proxima_gn", ""))
+            telefono_emergencia = st.text_input("Telefono emergencia", value=datos_previos.get("telefono_emergencia", ""))
+
+        if viaja_vehiculo == "SI":
+            st.markdown("### Vehiculo particular")
+            cv1, cv2 = st.columns(2)
+            with cv1:
+                vehiculo_marca = st.text_input("Marca", value=datos_previos.get("vehiculo_marca", ""))
+                vehiculo_dominio = st.text_input("Dominio", value=datos_previos.get("vehiculo_dominio", ""))
+            with cv2:
+                vehiculo_modelo = st.text_input("Modelo", value=datos_previos.get("vehiculo_modelo", ""))
+                vehiculo_titular = st.text_input("Titular", value=datos_previos.get("vehiculo_titular", ""))
+        else:
+            vehiculo_marca = vehiculo_modelo = vehiculo_dominio = vehiculo_titular = ""
+
+        observaciones = st.text_area("Observaciones", value=datos_previos.get("observaciones", ""))
+        confirmar = st.checkbox("Confirmo que los datos cargados son correctos")
+        enviar = st.form_submit_button("Guardar respuesta", type="primary", use_container_width=True)
+
+    if enviar:
+        errores = []
+        requeridos = {
+            "lugar licencia": lugar_licencia, "direccion": direccion, "barrio": barrio,
+            "calle": calle, "numero": numero, "unidad GN proxima": unidad_proxima_gn,
+            "telefono particular": telefono_particular, "telefono emergencia": telefono_emergencia,
+        }
+        for nombre, valor in requeridos.items():
+            if not str(valor or "").strip():
+                errores.append(f"Falta completar {nombre}.")
+        for nombre, valor in [("DNI", dni_base), ("CE", ce_base), ("numero", numero), ("telefono particular", telefono_particular), ("telefono emergencia", telefono_emergencia)]:
+            error = _validar_numero(nombre, valor, obligatorio=True)
+            if error:
+                errores.append(error)
+        if viaja_vehiculo == "SI":
+            for nombre, valor in {
+                "marca del vehiculo": vehiculo_marca,
+                "modelo del vehiculo": vehiculo_modelo,
+                "dominio del vehiculo": vehiculo_dominio,
+                "titular del vehiculo": vehiculo_titular,
+            }.items():
+                if not str(valor or "").strip():
+                    errores.append(f"Falta completar {nombre}.")
+        if not confirmar:
+            errores.append("Falta confirmar que los datos son correctos.")
+
+        if errores:
+            st.error(" ".join(errores))
+        else:
+            datos = {
+                "viaja_transporte_publico": viaja_transporte,
+                "viaja_vehiculo_particular": viaja_vehiculo,
+                "vehiculo_marca": _mayus(vehiculo_marca),
+                "vehiculo_modelo": _mayus(vehiculo_modelo),
+                "vehiculo_dominio": _dominio(vehiculo_dominio),
+                "vehiculo_titular": _mayus(vehiculo_titular),
+                "lugar_licencia": _mayus(lugar_licencia),
+                "direccion": _mayus(direccion),
+                "barrio": _mayus(barrio),
+                "calle": _mayus(calle),
+                "numero": _solo_digitos(numero),
+                "unidad_proxima_gn": _mayus(unidad_proxima_gn),
+                "telefono_particular": _solo_digitos(telefono_particular),
+                "telefono_emergencia": _solo_digitos(telefono_emergencia),
+                "observaciones": _mayus(observaciones),
+            }
+            _db_manager.guardar_respuesta_formulario(formulario["id"], orden, nombre_base, dni_base, ce_base, aula_base, datos)
+            st.success("Tus datos fueron guardados correctamente. Muchas gracias.")
+            st.info("Ya podés cerrar esta pantalla.")
+            st.stop()
+
+
+def preparar_control_formulario(df_personal, respuestas):
+    respuestas_por_orden = {int(r.get("orden", 0)): r for r in respuestas if str(r.get("orden", "")).strip()}
+    completaron = []
+    no_completaron = []
+    for _, row in df_personal.iterrows():
+        orden = int(row["ORDEN_LIMP"])
+        base = {
+            "Orden": orden,
+            "Apellido y nombres": _texto_limpio(row["NOMBRE_COMPLETO"]),
+            "DNI": _solo_digitos(row["DNI"]),
+            "CE": _solo_digitos(row["CE"]),
+            "Aula": _texto_limpio(row["AULA"]),
+            "Curso": _texto_limpio(row["GRADO"]),
+        }
+        resp = respuestas_por_orden.get(orden)
+        if resp:
+            datos = resp.get("datos", {}) or {}
+            completo = dict(base)
+            completo["Actualizado"] = resp.get("actualizado_en", "")
+            completo.update({
+                "Transporte publico": datos.get("viaja_transporte_publico", ""),
+                "Vehiculo particular": datos.get("viaja_vehiculo_particular", ""),
+                "Marca": datos.get("vehiculo_marca", ""),
+                "Modelo": datos.get("vehiculo_modelo", ""),
+                "Dominio": datos.get("vehiculo_dominio", ""),
+                "Titular": datos.get("vehiculo_titular", ""),
+                "Lugar licencia": datos.get("lugar_licencia", ""),
+                "Direccion": datos.get("direccion", ""),
+                "Barrio": datos.get("barrio", ""),
+                "Calle": datos.get("calle", ""),
+                "Numero": datos.get("numero", ""),
+                "Unidad GN proxima": datos.get("unidad_proxima_gn", ""),
+                "Telefono particular": datos.get("telefono_particular", ""),
+                "Telefono emergencia": datos.get("telefono_emergencia", ""),
+                "Observaciones": datos.get("observaciones", ""),
+            })
+            completaron.append(completo)
+        else:
+            no_completaron.append(base)
+    return pd.DataFrame(completaron), pd.DataFrame(no_completaron)
+
+
+def aplicar_filtros_control_formulario(df_base, texto="", aula="Todas", curso="Todos"):
+    if df_base.empty:
+        return df_base
+    filtrado = df_base.copy()
+    if aula and aula != "Todas" and "Aula" in filtrado.columns:
+        filtrado = filtrado[filtrado["Aula"].astype(str) == aula]
+    if curso and curso != "Todos" and "Curso" in filtrado.columns:
+        filtrado = filtrado[filtrado["Curso"].astype(str) == curso]
+    q = str(texto or "").strip().upper()
+    if q:
+        cols = [c for c in ["Apellido y nombres", "DNI", "CE", "Orden"] if c in filtrado.columns]
+        mask = pd.Series(False, index=filtrado.index)
+        for col in cols:
+            mask = mask | filtrado[col].astype(str).str.upper().str.contains(q, na=False)
+        filtrado = filtrado[mask]
+    return filtrado
+
+
+def excel_formulario_control(formulario, df_completaron, df_no_completaron):
+    from openpyxl.styles import Alignment, PatternFill, Border, Side
+
+    wb = openpyxl.Workbook()
+    ws_res = wb.active
+    ws_res.title = "RESUMEN"
+    ws_comp = wb.create_sheet("COMPLETARON")
+    ws_pend = wb.create_sheet("NO_COMPLETARON")
+
+    total = len(df_completaron) + len(df_no_completaron)
+    avance = round((len(df_completaron) / total) * 100, 2) if total else 0
+    ultima = ""
+    if not df_completaron.empty and "Actualizado" in df_completaron.columns:
+        ultima = str(df_completaron["Actualizado"].max())
+
+    resumen = [
+        ("Formulario", formulario.get("nombre", "")),
+        ("Slug", formulario.get("slug", "")),
+        ("Total esperados", total),
+        ("Completaron", len(df_completaron)),
+        ("No completaron", len(df_no_completaron)),
+        ("Avance", f"{avance}%"),
+        ("Ultima carga", ultima),
+    ]
+
+    fill_titulo = PatternFill(start_color=EXCEL_OLIVE_DARK, end_color=EXCEL_OLIVE_DARK, fill_type="solid")
+    fill_header = PatternFill(start_color=EXCEL_OLIVE, end_color=EXCEL_OLIVE, fill_type="solid")
+    fill_alt = PatternFill(start_color=EXCEL_OLIVE_ROW, end_color=EXCEL_OLIVE_ROW, fill_type="solid")
+    border = Border(left=Side(style="thin", color=EXCEL_BORDER), right=Side(style="thin", color=EXCEL_BORDER), top=Side(style="thin", color=EXCEL_BORDER), bottom=Side(style="thin", color=EXCEL_BORDER))
+
+    ws_res.merge_cells("A1:B1")
+    ws_res["A1"] = 'ESCUADRON H "Cabo Marcelo Godoy"'
+    ws_res["A1"].font = excel_font(bold=True, size=14, color=EXCEL_WHITE)
+    ws_res["A1"].fill = fill_titulo
+    ws_res["A1"].alignment = Alignment(horizontal="center")
+    ws_res["A2"] = "Resumen de formulario"
+    ws_res["A2"].font = excel_font(bold=True, color=EXCEL_TEXT_DARK)
+    for idx, (clave, valor) in enumerate(resumen, 4):
+        ws_res.cell(idx, 1, clave)
+        ws_res.cell(idx, 2, valor)
+        for col in (1, 2):
+            ws_res.cell(idx, col).border = border
+    ws_res.column_dimensions["A"].width = 24
+    ws_res.column_dimensions["B"].width = 44
+
+    def escribir_tabla(ws, df_tabla):
+        if df_tabla.empty:
+            ws["A1"] = "Sin registros"
+            return
+        for col_idx, col_name in enumerate(df_tabla.columns, 1):
+            cell = ws.cell(1, col_idx, col_name)
+            cell.font = excel_font(bold=True, color=EXCEL_WHITE)
+            cell.fill = fill_header
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = border
+        for row_idx, (_, row) in enumerate(df_tabla.iterrows(), 2):
+            for col_idx, col_name in enumerate(df_tabla.columns, 1):
+                cell = ws.cell(row_idx, col_idx, row.get(col_name, ""))
+                cell.border = border
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+                if row_idx % 2 == 0:
+                    cell.fill = fill_alt
+        for col_idx, col_name in enumerate(df_tabla.columns, 1):
+            width = min(max(len(str(col_name)) + 4, 14), 32)
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = width
+
+    escribir_tabla(ws_comp, df_completaron)
+    escribir_tabla(ws_pend, df_no_completaron)
+    return excel_bytes(wb)
+
+
+def panel_formularios_dinamicos(df_personal):
+    st.markdown("### Formularios")
+    st.caption("Crea enlaces publicos con token, controla respuestas y exporta el resumen.")
+
+    pin_cfg = str(obtener_secret_o_env("FORM_ADMIN_PIN", "") or "").strip()
+    if not pin_cfg:
+        st.warning("Falta configurar FORM_ADMIN_PIN en Secrets.")
+        return
+
+    pin_ingresado = st.text_input("PIN de formularios", type="password", key="form_admin_pin")
+    if not pin_ingresado:
+        st.info("Ingresá el PIN para administrar formularios.")
+        return
+    if not hmac.compare_digest(str(pin_ingresado), pin_cfg):
+        st.error("PIN incorrecto.")
+        return
+
+    info_bd_form = getattr(_db_manager, "info_base_datos", lambda: {"persistente": False})()
+    if not info_bd_form.get("persistente"):
+        st.warning("Base local SQLite: sirve para pruebas. Para uso real multiusuario conviene DATABASE_URL en Secrets.")
+
+    with st.expander("Crear formulario", expanded=False):
+        with st.form("crear_formulario_dinamico"):
+            nombre = st.text_input("Nombre interno", placeholder="Ej: Licencia invierno 2026")
+            slug = st.text_input("Slug / codigo", placeholder="licencia26").strip().lower()
+            descripcion = st.text_area("Descripcion opcional", placeholder="Texto breve que vera el aspirante")
+            activo = st.toggle("Activo", value=True)
+            crear = st.form_submit_button("Crear formulario", type="primary", use_container_width=True)
+        if crear:
+            slug_ok = re.fullmatch(r"[a-z0-9_-]{3,40}", slug or "")
+            if not nombre.strip() or not slug_ok:
+                st.error("Completá nombre y un slug válido: 3 a 40 caracteres, letras, números, guion o guion bajo.")
+            elif _db_manager.obtener_formulario_por_slug(slug):
+                st.error("Ya existe un formulario con ese slug.")
+            else:
+                token = py_secrets.token_urlsafe(24)
+                _db_manager.crear_formulario(slug, nombre, descripcion, token, activo, reglas_formulario_licencia())
+                st.success("Formulario creado.")
+                st.rerun()
+
+    formularios = _db_manager.listar_formularios()
+    if not formularios:
+        st.info("Todavía no hay formularios creados.")
+        return
+
+    opciones = {f"{f['nombre']} ({f['slug']})": f for f in formularios}
+    etiqueta = st.selectbox("Formulario", list(opciones.keys()), key="form_admin_selector")
+    formulario = opciones[etiqueta]
+
+    c_link, c_estado = st.columns([3, 1])
+    with c_link:
+        st.text_input("Link publico", value=link_publico_formulario(formulario), key=f"link_form_{formulario['id']}")
+        st.caption("Si no configuraste APP_PUBLIC_URL, copiá este final y pegalo al final de la URL de Streamlit.")
+    with c_estado:
+        st.metric("Estado", "Activo" if int(formulario.get("activo", 0)) == 1 else "Inactivo")
+
+    with st.expander("Editar formulario", expanded=False):
+        with st.form(f"editar_formulario_{formulario['id']}"):
+            nuevo_nombre = st.text_input("Nombre", value=formulario.get("nombre", ""))
+            nuevo_slug = st.text_input("Slug", value=formulario.get("slug", ""))
+            nueva_desc = st.text_area("Descripcion", value=formulario.get("descripcion", "") or "")
+            nuevo_activo = st.toggle("Activo", value=int(formulario.get("activo", 0)) == 1)
+            guardar = st.form_submit_button("Guardar cambios", use_container_width=True)
+        if guardar:
+            nuevo_slug_norm = str(nuevo_slug or "").strip().lower()
+            slug_ok = re.fullmatch(r"[a-z0-9_-]{3,40}", nuevo_slug_norm or "")
+            otro = _db_manager.obtener_formulario_por_slug(nuevo_slug_norm)
+            if not nuevo_nombre.strip() or not slug_ok:
+                st.error("Nombre y slug son obligatorios.")
+            elif otro and int(otro["id"]) != int(formulario["id"]):
+                st.error("Ese slug ya está usado por otro formulario.")
+            else:
+                _db_manager.actualizar_formulario(formulario["id"], nombre=nuevo_nombre, slug=nuevo_slug_norm, descripcion=nueva_desc, activo=nuevo_activo, reglas_json=reglas_formulario_licencia())
+                st.success("Formulario actualizado.")
+                st.rerun()
+
+    respuestas = _db_manager.obtener_respuestas_formulario(formulario["id"])
+    df_completaron, df_no_completaron = preparar_control_formulario(df_personal, respuestas)
+    total = len(df_personal)
+    avance = round((len(df_completaron) / total) * 100, 1) if total else 0
+    ultima = "-"
+    if not df_completaron.empty and "Actualizado" in df_completaron.columns:
+        ultima = str(df_completaron["Actualizado"].max())
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Esperados", total)
+    m2.metric("Completaron", len(df_completaron))
+    m3.metric("No completaron", len(df_no_completaron))
+    m4.metric("Avance", f"{avance}%")
+    st.caption(f"Ultima carga: {ultima}")
+
+    f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
+    with f1:
+        buscar = st.text_input("Buscar apellido, DNI, CE u orden", key=f"form_buscar_{formulario['id']}")
+    with f2:
+        aulas = ["Todas"] + sorted(df_personal["AULA"].astype(str).unique().tolist())
+        aula = st.selectbox("Aula", aulas, key=f"form_aula_{formulario['id']}")
+    with f3:
+        cursos = ["Todos"] + sorted(df_personal["GRADO"].astype(str).unique().tolist())
+        curso = st.selectbox("Curso", cursos, key=f"form_curso_{formulario['id']}")
+    with f4:
+        vista = st.selectbox("Vista", ["Todos", "Completaron", "Pendientes"], key=f"form_vista_{formulario['id']}")
+
+    comp_filtrado = aplicar_filtros_control_formulario(df_completaron, buscar, aula, curso)
+    pend_filtrado = aplicar_filtros_control_formulario(df_no_completaron, buscar, aula, curso)
+
+    if vista in {"Todos", "Completaron"}:
+        st.markdown("#### Completaron")
+        st.dataframe(comp_filtrado, use_container_width=True, hide_index=True)
+    if vista in {"Todos", "Pendientes"}:
+        st.markdown("#### No completaron")
+        st.dataframe(pend_filtrado, use_container_width=True, hide_index=True)
+
+    excel_data = excel_formulario_control(formulario, comp_filtrado, pend_filtrado)
+    st.download_button(
+        "Descargar Excel del formulario",
+        data=excel_data,
+        file_name=f"FORMULARIO_{formulario.get('slug', 'formulario').upper()}_{ahora_local().strftime('%d%m%Y_%H%M')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True,
+    )
+
+
 def panel_admin_usuarios():
     st.subheader("👥 Administración de usuarios")
     st.caption("Crea y administra los usuarios autorizados para ingresar a la plataforma.")
@@ -1399,6 +1880,10 @@ if df.empty:
 
 if formulario_plan_publico_solicitado():
     mostrar_formulario_plan_publico(df)
+    st.stop()
+
+if formulario_dinamico_publico_solicitado():
+    mostrar_formulario_dinamico_publico(df)
     st.stop()
 
 requerir_login()
@@ -2367,6 +2852,9 @@ with tab_alm:
 with tab_plan:
     st.subheader("📞 Plan de Llamada - Base de Contactos")
     st.info("Registra domicilios y contactos de emergencia para cada personal del escuadrón.")
+
+    with st.expander("📋 Formularios dinámicos", expanded=False):
+        panel_formularios_dinamicos(df)
 
     with st.expander("🔗 Formulario público para datos de licencia", expanded=False):
         form_enabled = valor_verdadero(obtener_secret_o_env("PLAN_FORM_ENABLED", "false"))
