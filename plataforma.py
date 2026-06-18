@@ -1324,15 +1324,158 @@ def _validar_numero(nombre, valor, obligatorio=True):
     return ""
 
 
-def reglas_formulario_licencia():
+TIPOS_CAMPOS_FORMULARIO = {
+    "Texto corto": "texto",
+    "Texto largo": "texto_largo",
+    "Numero": "numero",
+    "Telefono": "telefono",
+    "DNI": "dni",
+    "CE": "ce",
+    "SI/NO": "si_no",
+    "Lista desplegable": "lista",
+    "Fecha": "fecha",
+    "Hora": "hora",
+}
+
+
+def clave_campo_desde_etiqueta(etiqueta):
+    base = unicodedata.normalize("NFKD", str(etiqueta or "")).encode("ascii", "ignore").decode("ascii")
+    base = re.sub(r"[^a-zA-Z0-9]+", "_", base).strip("_").lower()
+    return base or "campo"
+
+
+def normalizar_campo_formulario(campo):
+    campo = dict(campo or {})
+    etiqueta = str(campo.get("etiqueta") or campo.get("label") or "").strip()
+    clave = str(campo.get("clave") or campo.get("name") or clave_campo_desde_etiqueta(etiqueta)).strip().lower()
+    tipo = str(campo.get("tipo") or "texto").strip().lower()
+    opciones = campo.get("opciones") or []
+    if isinstance(opciones, str):
+        opciones = [o.strip().upper() for o in opciones.split(",") if o.strip()]
+    if tipo == "si_no":
+        opciones = ["SI", "NO"]
     return {
-        "tipo": "licencia_contacto",
-        "campos_obligatorios": [
-            "lugar_licencia", "direccion", "barrio", "calle", "numero",
-            "unidad_proxima_gn", "telefono_particular", "telefono_emergencia",
-        ],
-        "vehiculo_condicional": ["vehiculo_marca", "vehiculo_modelo", "vehiculo_dominio", "vehiculo_titular"],
+        "clave": clave_campo_desde_etiqueta(clave),
+        "etiqueta": etiqueta or clave.replace("_", " ").title(),
+        "tipo": tipo if tipo in TIPOS_CAMPOS_FORMULARIO.values() else "texto",
+        "obligatorio": bool(campo.get("obligatorio", False)),
+        "mayusculas": bool(campo.get("mayusculas", tipo in {"texto", "texto_largo", "lista", "si_no"})),
+        "sin_puntos": bool(campo.get("sin_puntos", tipo in {"dni", "telefono"})),
+        "solo_numeros": bool(campo.get("solo_numeros", tipo in {"numero", "dni", "telefono", "ce"})),
+        "opciones": opciones,
     }
+
+
+def campos_formulario_licencia_base():
+    return [
+        {"clave": "viaja_transporte_publico", "etiqueta": "Viaja en transporte publico", "tipo": "si_no", "obligatorio": True, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": ["SI", "NO"]},
+        {"clave": "viaja_vehiculo_particular", "etiqueta": "Viaja en vehiculo particular", "tipo": "si_no", "obligatorio": True, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": ["SI", "NO"]},
+        {"clave": "lugar_licencia", "etiqueta": "Lugar de licencia", "tipo": "texto", "obligatorio": True, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "direccion", "etiqueta": "Direccion", "tipo": "texto", "obligatorio": True, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "barrio", "etiqueta": "Barrio", "tipo": "texto", "obligatorio": True, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "calle", "etiqueta": "Calle", "tipo": "texto", "obligatorio": True, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "numero", "etiqueta": "Numero", "tipo": "numero", "obligatorio": True, "mayusculas": False, "sin_puntos": True, "solo_numeros": True, "opciones": []},
+        {"clave": "unidad_proxima_gn", "etiqueta": "Unidad GN proxima", "tipo": "texto", "obligatorio": True, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "telefono_particular", "etiqueta": "Telefono particular", "tipo": "telefono", "obligatorio": True, "mayusculas": False, "sin_puntos": True, "solo_numeros": True, "opciones": []},
+        {"clave": "telefono_emergencia", "etiqueta": "Telefono emergencia", "tipo": "telefono", "obligatorio": True, "mayusculas": False, "sin_puntos": True, "solo_numeros": True, "opciones": []},
+        {"clave": "vehiculo_marca", "etiqueta": "Marca del vehiculo", "tipo": "texto", "obligatorio": False, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "vehiculo_modelo", "etiqueta": "Modelo del vehiculo", "tipo": "texto", "obligatorio": False, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "vehiculo_dominio", "etiqueta": "Dominio del vehiculo", "tipo": "texto", "obligatorio": False, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "vehiculo_titular", "etiqueta": "Titular del vehiculo", "tipo": "texto", "obligatorio": False, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+        {"clave": "observaciones", "etiqueta": "Observaciones", "tipo": "texto_largo", "obligatorio": False, "mayusculas": True, "sin_puntos": False, "solo_numeros": False, "opciones": []},
+    ]
+
+
+def obtener_campos_formulario(formulario):
+    reglas = formulario.get("reglas") or {}
+    if isinstance(reglas, list):
+        campos = reglas
+    elif isinstance(reglas, dict) and isinstance(reglas.get("campos"), list):
+        campos = reglas.get("campos", [])
+    elif isinstance(reglas, dict) and reglas.get("tipo") == "licencia_contacto":
+        campos = campos_formulario_licencia_base()
+    else:
+        campos = []
+    return [normalizar_campo_formulario(c) for c in campos]
+
+
+def reglas_desde_campos(campos):
+    return {"version": 2, "campos": [normalizar_campo_formulario(c) for c in campos]}
+
+
+def validar_y_normalizar_valor_campo(campo, valor):
+    campo = normalizar_campo_formulario(campo)
+    tipo = campo["tipo"]
+    if valor is None:
+        texto = ""
+    elif tipo == "fecha":
+        texto = valor.isoformat() if hasattr(valor, "isoformat") else str(valor)
+    elif tipo == "hora":
+        texto = valor.strftime("%H:%M") if hasattr(valor, "strftime") else str(valor)
+    else:
+        texto = str(valor).strip()
+
+    if campo["obligatorio"] and not texto:
+        return "", f"Falta completar {campo['etiqueta']}."
+    if not texto:
+        return "", ""
+    if campo["sin_puntos"] and "." in texto:
+        return "", f"{campo['etiqueta']} no permite puntos."
+    if tipo in {"dni", "telefono"}:
+        campo["solo_numeros"] = True
+        campo["sin_puntos"] = True
+    if tipo == "si_no":
+        texto = texto.upper()
+        if texto not in {"SI", "NO"}:
+            return "", f"{campo['etiqueta']} solo permite SI o NO."
+    if campo["solo_numeros"] and not texto.isdigit():
+        return "", f"{campo['etiqueta']} debe tener solo numeros, sin puntos, comas, espacios ni guiones."
+    if tipo == "lista":
+        opciones = [str(o).strip().upper() if campo["mayusculas"] else str(o).strip() for o in campo.get("opciones", [])]
+        comparado = texto.upper() if campo["mayusculas"] else texto
+        if opciones and comparado not in opciones:
+            return "", f"{campo['etiqueta']} debe ser una opcion valida."
+    if campo["mayusculas"]:
+        texto = texto.upper()
+    return texto, ""
+
+
+def renderizar_campo_formulario(campo, valor_actual, key_prefix):
+    campo = normalizar_campo_formulario(campo)
+    clave = campo["clave"]
+    etiqueta = campo["etiqueta"] + (" *" if campo["obligatorio"] else "")
+    tipo = campo["tipo"]
+    key = f"{key_prefix}_{clave}"
+    valor_actual = "" if valor_actual is None else valor_actual
+    if tipo == "texto_largo":
+        return st.text_area(etiqueta, value=str(valor_actual), key=key)
+    if tipo in {"numero", "telefono", "dni", "ce"}:
+        return st.text_input(etiqueta, value=str(valor_actual), key=key)
+    if tipo == "si_no":
+        opciones = ["SI", "NO"]
+        idx = 0 if str(valor_actual).upper() == "SI" else 1
+        return st.radio(etiqueta, opciones, index=idx, horizontal=True, key=key)
+    if tipo == "lista":
+        opciones = [str(o).strip().upper() if campo["mayusculas"] else str(o).strip() for o in campo.get("opciones", []) if str(o).strip()]
+        if not opciones:
+            opciones = [""]
+        idx = opciones.index(valor_actual) if valor_actual in opciones else 0
+        return st.selectbox(etiqueta, opciones, index=idx, key=key)
+    if tipo == "fecha":
+        fecha_default = None
+        try:
+            fecha_default = datetime.fromisoformat(str(valor_actual)).date() if valor_actual else None
+        except Exception:
+            fecha_default = None
+        return st.date_input(etiqueta, value=fecha_default, key=key)
+    if tipo == "hora":
+        hora_default = None
+        try:
+            hora_default = datetime.strptime(str(valor_actual), "%H:%M").time() if valor_actual else None
+        except Exception:
+            hora_default = None
+        return st.time_input(etiqueta, value=hora_default, key=key)
+    return st.text_input(etiqueta, value=str(valor_actual), key=key)
 
 
 def link_publico_formulario(formulario):
@@ -1377,6 +1520,11 @@ def mostrar_formulario_dinamico_publico(df_personal):
     if formulario.get("descripcion"):
         st.caption(str(formulario.get("descripcion")))
 
+    campos = obtener_campos_formulario(formulario)
+    if not campos:
+        st.warning("Este formulario todavía no tiene campos configurados.\nAgregue campos desde el panel de administración.")
+        st.stop()
+
     identificador = st.text_input("DNI o CE", placeholder="Escribi tu DNI o CE sin puntos", key=f"formpub_ident_{slug}")
     if not identificador.strip():
         st.stop()
@@ -1407,9 +1555,6 @@ def mostrar_formulario_dinamico_publico(df_personal):
     st.success(f"Datos validados: {nombre_base} | Aula {aula_base} | Orden {orden}")
     st.caption("Apellido/nombres, DNI, CE, Aula y Orden se toman de alumnos.csv y quedan bloqueados.")
 
-    def idx_si_no(valor, defecto="NO"):
-        return 0 if str(valor or defecto).strip().upper() == "SI" else 1
-
     with st.form(f"formulario_dinamico_{formulario['id']}_{orden}"):
         st.markdown("### Datos de base")
         st.text_input("Apellido y nombres", value=nombre_base, disabled=True)
@@ -1424,93 +1569,33 @@ def mostrar_formulario_dinamico_publico(df_personal):
             st.text_input("Aula", value=aula_base, disabled=True)
 
         st.markdown("### Datos para completar")
-        ctrans, cveh = st.columns(2)
-        with ctrans:
-            viaja_transporte = st.radio("Viaja en transporte publico", ["SI", "NO"], index=idx_si_no(datos_previos.get("viaja_transporte_publico")), horizontal=True)
-        with cveh:
-            viaja_vehiculo = st.radio("Viaja en vehiculo particular", ["SI", "NO"], index=idx_si_no(datos_previos.get("viaja_vehiculo_particular")), horizontal=True)
-
-        c5, c6 = st.columns(2)
-        with c5:
-            lugar_licencia = st.text_input("Lugar licencia", value=datos_previos.get("lugar_licencia", ""))
-            barrio = st.text_input("Barrio", value=datos_previos.get("barrio", ""))
-            numero = st.text_input("Numero", value=datos_previos.get("numero", ""))
-            telefono_particular = st.text_input("Telefono particular", value=datos_previos.get("telefono_particular", ""))
-        with c6:
-            direccion = st.text_input("Direccion", value=datos_previos.get("direccion", ""))
-            calle = st.text_input("Calle", value=datos_previos.get("calle", ""))
-            unidad_proxima_gn = st.text_input("Unidad GN proxima", value=datos_previos.get("unidad_proxima_gn", ""))
-            telefono_emergencia = st.text_input("Telefono emergencia", value=datos_previos.get("telefono_emergencia", ""))
-
-        if viaja_vehiculo == "SI":
-            st.markdown("### Vehiculo particular")
-            cv1, cv2 = st.columns(2)
-            with cv1:
-                vehiculo_marca = st.text_input("Marca", value=datos_previos.get("vehiculo_marca", ""))
-                vehiculo_dominio = st.text_input("Dominio", value=datos_previos.get("vehiculo_dominio", ""))
-            with cv2:
-                vehiculo_modelo = st.text_input("Modelo", value=datos_previos.get("vehiculo_modelo", ""))
-                vehiculo_titular = st.text_input("Titular", value=datos_previos.get("vehiculo_titular", ""))
-        else:
-            vehiculo_marca = vehiculo_modelo = vehiculo_dominio = vehiculo_titular = ""
-
-        observaciones = st.text_area("Observaciones", value=datos_previos.get("observaciones", ""))
+        valores_ingresados = {}
+        for campo in campos:
+            valores_ingresados[campo["clave"]] = renderizar_campo_formulario(campo, datos_previos.get(campo["clave"], ""), f"formpub_{formulario['id']}_{orden}")
         confirmar = st.checkbox("Confirmo que los datos cargados son correctos")
         enviar = st.form_submit_button("Guardar respuesta", type="primary", use_container_width=True)
 
     if enviar:
         errores = []
-        requeridos = {
-            "lugar licencia": lugar_licencia, "direccion": direccion, "barrio": barrio,
-            "calle": calle, "numero": numero, "unidad GN proxima": unidad_proxima_gn,
-            "telefono particular": telefono_particular, "telefono emergencia": telefono_emergencia,
-        }
-        for nombre, valor in requeridos.items():
-            if not str(valor or "").strip():
-                errores.append(f"Falta completar {nombre}.")
-        for nombre, valor in [("DNI", dni_base), ("CE", ce_base), ("numero", numero), ("telefono particular", telefono_particular), ("telefono emergencia", telefono_emergencia)]:
-            error = _validar_numero(nombre, valor, obligatorio=True)
+        datos = {}
+        for campo in campos:
+            valor, error = validar_y_normalizar_valor_campo(campo, valores_ingresados.get(campo["clave"]))
             if error:
                 errores.append(error)
-        if viaja_vehiculo == "SI":
-            for nombre, valor in {
-                "marca del vehiculo": vehiculo_marca,
-                "modelo del vehiculo": vehiculo_modelo,
-                "dominio del vehiculo": vehiculo_dominio,
-                "titular del vehiculo": vehiculo_titular,
-            }.items():
-                if not str(valor or "").strip():
-                    errores.append(f"Falta completar {nombre}.")
+            datos[campo["clave"]] = valor
         if not confirmar:
             errores.append("Falta confirmar que los datos son correctos.")
 
         if errores:
             st.error(" ".join(errores))
         else:
-            datos = {
-                "viaja_transporte_publico": viaja_transporte,
-                "viaja_vehiculo_particular": viaja_vehiculo,
-                "vehiculo_marca": _mayus(vehiculo_marca),
-                "vehiculo_modelo": _mayus(vehiculo_modelo),
-                "vehiculo_dominio": _dominio(vehiculo_dominio),
-                "vehiculo_titular": _mayus(vehiculo_titular),
-                "lugar_licencia": _mayus(lugar_licencia),
-                "direccion": _mayus(direccion),
-                "barrio": _mayus(barrio),
-                "calle": _mayus(calle),
-                "numero": _solo_digitos(numero),
-                "unidad_proxima_gn": _mayus(unidad_proxima_gn),
-                "telefono_particular": _solo_digitos(telefono_particular),
-                "telefono_emergencia": _solo_digitos(telefono_emergencia),
-                "observaciones": _mayus(observaciones),
-            }
             _db_manager.guardar_respuesta_formulario(formulario["id"], orden, nombre_base, dni_base, ce_base, aula_base, datos)
             st.success("Tus datos fueron guardados correctamente. Muchas gracias.")
             st.info("Ya podés cerrar esta pantalla.")
             st.stop()
 
 
-def preparar_control_formulario(df_personal, respuestas):
+def preparar_control_formulario(df_personal, respuestas, campos):
     respuestas_por_orden = {int(r.get("orden", 0)): r for r in respuestas if str(r.get("orden", "")).strip()}
     completaron = []
     no_completaron = []
@@ -1528,24 +1613,10 @@ def preparar_control_formulario(df_personal, respuestas):
         if resp:
             datos = resp.get("datos", {}) or {}
             completo = dict(base)
-            completo["Actualizado"] = resp.get("actualizado_en", "")
-            completo.update({
-                "Transporte publico": datos.get("viaja_transporte_publico", ""),
-                "Vehiculo particular": datos.get("viaja_vehiculo_particular", ""),
-                "Marca": datos.get("vehiculo_marca", ""),
-                "Modelo": datos.get("vehiculo_modelo", ""),
-                "Dominio": datos.get("vehiculo_dominio", ""),
-                "Titular": datos.get("vehiculo_titular", ""),
-                "Lugar licencia": datos.get("lugar_licencia", ""),
-                "Direccion": datos.get("direccion", ""),
-                "Barrio": datos.get("barrio", ""),
-                "Calle": datos.get("calle", ""),
-                "Numero": datos.get("numero", ""),
-                "Unidad GN proxima": datos.get("unidad_proxima_gn", ""),
-                "Telefono particular": datos.get("telefono_particular", ""),
-                "Telefono emergencia": datos.get("telefono_emergencia", ""),
-                "Observaciones": datos.get("observaciones", ""),
-            })
+            completo["Fecha de carga"] = resp.get("creado_en", "")
+            completo["Fecha de actualización"] = resp.get("actualizado_en", "")
+            for campo in campos:
+                completo[campo["etiqueta"]] = datos.get(campo["clave"], "")
             completaron.append(completo)
         else:
             no_completaron.append(base)
@@ -1582,8 +1653,8 @@ def excel_formulario_control(formulario, df_completaron, df_no_completaron):
     total = len(df_completaron) + len(df_no_completaron)
     avance = round((len(df_completaron) / total) * 100, 2) if total else 0
     ultima = ""
-    if not df_completaron.empty and "Actualizado" in df_completaron.columns:
-        ultima = str(df_completaron["Actualizado"].max())
+    if not df_completaron.empty and "Fecha de actualización" in df_completaron.columns:
+        ultima = str(df_completaron["Fecha de actualización"].max())
 
     resumen = [
         ("Formulario", formulario.get("nombre", "")),
@@ -1677,7 +1748,7 @@ def panel_formularios_dinamicos(df_personal):
                 st.error("Ya existe un formulario con ese slug.")
             else:
                 token = py_secrets.token_urlsafe(24)
-                _db_manager.crear_formulario(slug, nombre, descripcion, token, activo, reglas_formulario_licencia())
+                _db_manager.crear_formulario(slug, nombre, descripcion, token, activo, reglas_desde_campos([]))
                 st.success("Formulario creado.")
                 st.rerun()
 
@@ -1713,17 +1784,106 @@ def panel_formularios_dinamicos(df_personal):
             elif otro and int(otro["id"]) != int(formulario["id"]):
                 st.error("Ese slug ya está usado por otro formulario.")
             else:
-                _db_manager.actualizar_formulario(formulario["id"], nombre=nuevo_nombre, slug=nuevo_slug_norm, descripcion=nueva_desc, activo=nuevo_activo, reglas_json=reglas_formulario_licencia())
+                _db_manager.actualizar_formulario(formulario["id"], nombre=nuevo_nombre, slug=nuevo_slug_norm, descripcion=nueva_desc, activo=nuevo_activo)
                 st.success("Formulario actualizado.")
                 st.rerun()
 
+    campos = obtener_campos_formulario(formulario)
+    with st.expander("Campos del formulario", expanded=True):
+        if not campos:
+            st.info("Este formulario todavía no tiene campos configurados.\nAgregue campos desde el panel de administración.")
+
+        for idx, campo in enumerate(campos):
+            titulo = f"{idx + 1}. {campo['etiqueta']} ({campo['tipo']})"
+            with st.container(border=True):
+                st.markdown(f"**{titulo}**")
+                e1, e2, e3 = st.columns([2, 1.4, 1])
+                with e1:
+                    etiqueta_c = st.text_input("Etiqueta", value=campo["etiqueta"], key=f"campo_etq_{formulario['id']}_{idx}")
+                    clave_c = st.text_input("Clave interna", value=campo["clave"], key=f"campo_clave_{formulario['id']}_{idx}")
+                    opciones_c = st.text_input("Opciones (separadas por coma)", value=", ".join(campo.get("opciones", [])), key=f"campo_opc_{formulario['id']}_{idx}")
+                with e2:
+                    tipo_label = next((k for k, v in TIPOS_CAMPOS_FORMULARIO.items() if v == campo["tipo"]), "Texto corto")
+                    tipo_c = st.selectbox("Tipo", list(TIPOS_CAMPOS_FORMULARIO.keys()), index=list(TIPOS_CAMPOS_FORMULARIO.keys()).index(tipo_label), key=f"campo_tipo_{formulario['id']}_{idx}")
+                    obligatorio_c = st.toggle("Obligatorio", value=campo["obligatorio"], key=f"campo_obl_{formulario['id']}_{idx}")
+                    mayus_c = st.toggle("Mayusculas", value=campo["mayusculas"], key=f"campo_may_{formulario['id']}_{idx}")
+                with e3:
+                    sin_puntos_c = st.toggle("Sin puntos", value=campo["sin_puntos"], key=f"campo_pun_{formulario['id']}_{idx}")
+                    solo_numeros_c = st.toggle("Solo numeros", value=campo["solo_numeros"], key=f"campo_num_{formulario['id']}_{idx}")
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        if st.button("Subir", key=f"campo_up_{formulario['id']}_{idx}", disabled=idx == 0, use_container_width=True):
+                            campos[idx - 1], campos[idx] = campos[idx], campos[idx - 1]
+                            _db_manager.actualizar_formulario(formulario["id"], reglas_json=reglas_desde_campos(campos))
+                            st.rerun()
+                    with col_b:
+                        if st.button("Bajar", key=f"campo_down_{formulario['id']}_{idx}", disabled=idx == len(campos) - 1, use_container_width=True):
+                            campos[idx + 1], campos[idx] = campos[idx], campos[idx + 1]
+                            _db_manager.actualizar_formulario(formulario["id"], reglas_json=reglas_desde_campos(campos))
+                            st.rerun()
+                    if st.button("Eliminar", key=f"campo_del_{formulario['id']}_{idx}", use_container_width=True):
+                        nuevos = [c for i, c in enumerate(campos) if i != idx]
+                        _db_manager.actualizar_formulario(formulario["id"], reglas_json=reglas_desde_campos(nuevos))
+                        st.rerun()
+                if st.button("Guardar campo", key=f"campo_save_{formulario['id']}_{idx}", use_container_width=True):
+                    campos[idx] = normalizar_campo_formulario({
+                        "etiqueta": etiqueta_c,
+                        "clave": clave_c,
+                        "tipo": TIPOS_CAMPOS_FORMULARIO[tipo_c],
+                        "obligatorio": obligatorio_c,
+                        "mayusculas": mayus_c,
+                        "sin_puntos": sin_puntos_c,
+                        "solo_numeros": solo_numeros_c,
+                        "opciones": opciones_c,
+                    })
+                    _db_manager.actualizar_formulario(formulario["id"], reglas_json=reglas_desde_campos(campos))
+                    st.success("Campo actualizado.")
+                    st.rerun()
+
+        st.markdown("#### Agregar campo")
+        with st.form(f"agregar_campo_{formulario['id']}"):
+            n1, n2 = st.columns(2)
+            with n1:
+                nueva_etiqueta = st.text_input("Etiqueta del campo", placeholder="Lugar de licencia")
+                nueva_clave = st.text_input("Clave interna", placeholder="Se genera si queda vacio")
+                nuevo_tipo = st.selectbox("Tipo", list(TIPOS_CAMPOS_FORMULARIO.keys()))
+            with n2:
+                nuevo_obl = st.toggle("Obligatorio", value=True)
+                nuevo_may = st.toggle("Convertir a mayusculas", value=True)
+                nuevo_sin_puntos = st.toggle("No permitir puntos", value=False)
+                nuevo_solo_nums = st.toggle("Solo numeros", value=False)
+                nuevas_opciones = st.text_input("Opciones si corresponde", placeholder="SI, NO, OTRA")
+            agregar_campo = st.form_submit_button("Agregar campo", type="primary", use_container_width=True)
+        if agregar_campo:
+            if not nueva_etiqueta.strip():
+                st.error("La etiqueta del campo es obligatoria.")
+            else:
+                clave_final = nueva_clave.strip() or clave_campo_desde_etiqueta(nueva_etiqueta)
+                claves_existentes = {c["clave"] for c in campos}
+                if clave_campo_desde_etiqueta(clave_final) in claves_existentes:
+                    st.error("Ya existe un campo con esa clave interna.")
+                else:
+                    campos.append(normalizar_campo_formulario({
+                        "etiqueta": nueva_etiqueta,
+                        "clave": clave_final,
+                        "tipo": TIPOS_CAMPOS_FORMULARIO[nuevo_tipo],
+                        "obligatorio": nuevo_obl,
+                        "mayusculas": nuevo_may,
+                        "sin_puntos": nuevo_sin_puntos,
+                        "solo_numeros": nuevo_solo_nums,
+                        "opciones": nuevas_opciones,
+                    }))
+                    _db_manager.actualizar_formulario(formulario["id"], reglas_json=reglas_desde_campos(campos))
+                    st.success("Campo agregado.")
+                    st.rerun()
+
     respuestas = _db_manager.obtener_respuestas_formulario(formulario["id"])
-    df_completaron, df_no_completaron = preparar_control_formulario(df_personal, respuestas)
+    df_completaron, df_no_completaron = preparar_control_formulario(df_personal, respuestas, campos)
     total = len(df_personal)
     avance = round((len(df_completaron) / total) * 100, 1) if total else 0
     ultima = "-"
-    if not df_completaron.empty and "Actualizado" in df_completaron.columns:
-        ultima = str(df_completaron["Actualizado"].max())
+    if not df_completaron.empty and "Fecha de actualización" in df_completaron.columns:
+        ultima = str(df_completaron["Fecha de actualización"].max())
 
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Esperados", total)
