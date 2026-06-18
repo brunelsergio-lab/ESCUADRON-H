@@ -1737,27 +1737,19 @@ def excel_formulario_control(formulario, df_completaron, df_no_completaron):
 
 def panel_formularios_dinamicos(df_personal):
     st.markdown("### Formularios")
-    st.caption("Paso 1: creá el formulario. Paso 2: diseñá los campos. Paso 3: revisá la vista previa y compartí el link.")
-
-    pin_cfg = str(obtener_secret_o_env("FORM_ADMIN_PIN", "") or "").strip()
-    if not pin_cfg:
-        st.warning("Falta configurar FORM_ADMIN_PIN en Secrets.")
-        return
-
-    pin_ingresado = st.text_input("PIN de formularios", type="password", key="form_admin_pin")
-    if not pin_ingresado:
-        st.info("Ingresá el PIN para administrar formularios.")
-        return
-    if not hmac.compare_digest(str(pin_ingresado), pin_cfg):
-        st.error("PIN incorrecto.")
-        return
+    st.caption("Constructor de formularios: creá, diseñá campos, compartí el link y controlá respuestas.")
 
     info_bd_form = getattr(_db_manager, "info_base_datos", lambda: {"persistente": False})()
     if not info_bd_form.get("persistente"):
         st.warning("Base local SQLite: sirve para pruebas. Para uso real multiusuario conviene DATABASE_URL en Secrets.")
 
-    st.markdown("#### 1. Crear o seleccionar formulario")
-    with st.expander("Crear formulario nuevo", expanded=False):
+    st.markdown("#### Crear formulario")
+    if "mostrar_creador_formulario" not in st.session_state:
+        st.session_state.mostrar_creador_formulario = False
+    if st.button("➕ Crear formulario", type="primary", use_container_width=True):
+        st.session_state.mostrar_creador_formulario = not st.session_state.mostrar_creador_formulario
+
+    if st.session_state.mostrar_creador_formulario:
         with st.form("crear_formulario_dinamico"):
             nombre = st.text_input("Nombre del formulario", placeholder="Ej: Talles 2026")
             slug = st.text_input("Slug / codigo", placeholder="Opcional: se genera desde el nombre").strip().lower()
@@ -1776,6 +1768,7 @@ def panel_formularios_dinamicos(df_personal):
                 token = py_secrets.token_urlsafe(24)
                 _db_manager.crear_formulario(slug, nombre, descripcion, token, activo, reglas_desde_campos([]))
                 st.success("Formulario creado.")
+                st.session_state.mostrar_creador_formulario = False
                 st.rerun()
 
     formularios = _db_manager.listar_formularios()
@@ -1783,6 +1776,35 @@ def panel_formularios_dinamicos(df_personal):
         st.info("Todavía no hay formularios creados.")
         return
 
+    st.markdown("#### Formularios activos")
+    activos = [f for f in formularios if int(f.get("activo", 0)) == 1]
+    if activos:
+        for form_activo in activos:
+            with st.container(border=True):
+                c_info, c_link_activo, c_del = st.columns([2.2, 2.8, 1.2])
+                with c_info:
+                    st.markdown(f"**{form_activo.get('nombre', '')}**")
+                    st.caption(f"Slug: {form_activo.get('slug', '')}")
+                with c_link_activo:
+                    st.text_input("Link público", value=link_publico_formulario(form_activo), key=f"active_link_{form_activo['id']}")
+                with c_del:
+                    confirmar_activo = st.checkbox("Confirmar", key=f"del_check_active_{form_activo['id']}")
+                    if st.button("Eliminar", key=f"del_active_{form_activo['id']}", use_container_width=True, disabled=not confirmar_activo):
+                        _db_manager.eliminar_formulario(form_activo["id"])
+                        st.success("Formulario eliminado.")
+                        st.rerun()
+    else:
+        st.info("No hay formularios activos.")
+
+    with st.expander("Limpiar todos los formularios", expanded=False):
+        st.warning("Esto borra todos los formularios y todas sus respuestas. No afecta alumnos.csv ni los demás módulos.")
+        limpiar_txt = st.text_input("Para limpiar todo escribí: LIMPIAR", key="confirm_limpiar_formularios")
+        if st.button("Eliminar todos los formularios", key="limpiar_todos_formularios", use_container_width=True, disabled=limpiar_txt.strip().upper() != "LIMPIAR"):
+            _db_manager.eliminar_todos_formularios()
+            st.success("Formularios eliminados. Ya podés empezar de cero.")
+            st.rerun()
+
+    st.markdown("#### Editar y controlar formulario")
     opciones = {f"{f['nombre']} ({f['slug']})": f for f in formularios}
     etiqueta = st.selectbox("Formulario", list(opciones.keys()), key="form_admin_selector")
     formulario = opciones[etiqueta]

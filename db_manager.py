@@ -929,6 +929,14 @@ def eliminar_formulario(id_formulario):
         conn.commit()
 
 
+def eliminar_todos_formularios():
+    asegurar_tablas()
+    with get_db() as conn:
+        run(conn, "DELETE FROM formularios_respuestas")
+        run(conn, "DELETE FROM formularios")
+        conn.commit()
+
+
 def guardar_respuesta_formulario(formulario_id, orden, apellido_nombres, dni, ce, aula, datos):
     asegurar_tablas()
     ahora = _now_text()
