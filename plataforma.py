@@ -617,7 +617,7 @@ def generar_minuta_visual_whatsapp():
     return "\n".join(bloques)
 
 
-def generar_minuta_informativa(formato="Visual WhatsApp / Celular"):
+def generar_minuta_informativa(formato="Formal cl\u00e1sico"):
     if formato == "Formal cl\u00e1sico":
         return generar_minuta_formal_clasica()
     return generar_minuta_visual_whatsapp()
@@ -3546,14 +3546,7 @@ with tab_res:
 with tab_res:
     st.divider()
     st.subheader("Minuta informativa")
-    formato_minuta = st.radio(
-        "Formato de minuta:",
-        ["Visual WhatsApp / Celular", "Formal cl\u00e1sico"],
-        index=0,
-        horizontal=True,
-        key="formato_minuta",
-    )
-    minuta_texto = generar_minuta_informativa(formato_minuta)
+    minuta_texto = generar_minuta_informativa("Formal cl\u00e1sico")
     st.text_area("Minuta generada autom?ticamente desde Novedades", value=minuta_texto, height=560)
     nombre_minuta = f"MINUTA_ESCUADRON_H_{st.session_state.fecha_reporte.strftime('%d%m%Y')}.txt"
     minuta_bytes = minuta_texto.encode("utf-8-sig")
