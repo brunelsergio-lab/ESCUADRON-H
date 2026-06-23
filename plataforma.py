@@ -759,6 +759,31 @@ def generar_parte_formacion():
     datos = datos_base_minuta()
     novedades = datos["novedades"]
 
+    plan_aulas = obtener_plan_numerico_aulas(FECHA_PARTE_STR)
+    lineas_plan_aulas = []
+    for aula in AULAS_UNICAS:
+        plan_aula = plan_aulas.get(aula, {})
+        cantidad = int(plan_aula.get("presentes", 0) or 0)
+        if cantidad <= 0:
+            continue
+        actividad = str(plan_aula.get("actividad", "")).strip().upper()
+        grados_aula = df[df["AULA"] == aula]["GRADO"]
+        if not grados_aula.empty and grados_aula.map(es_tercer_anio).all():
+            grado_resumen = "ASP III"
+        elif not grados_aula.empty and grados_aula.map(es_aop).all():
+            grado_resumen = "ASP I"
+        else:
+            grado_resumen = "ASP"
+        aula_visible = re.sub(r"(\d+)\s*(TM|TT)$", r"\1 \2", str(aula).upper())
+        detalle_actividad = f" {actividad}" if actividad else ""
+        lineas_plan_aulas.append(
+            f"• AULA {aula_visible}: {cantidad} {grado_resumen}{detalle_actividad}"
+        )
+    bloque_plan_aulas = ""
+    if lineas_plan_aulas:
+        bloque_plan_aulas = "PRESENTES POR AULA\n\n" + "\n".join(lineas_plan_aulas)
+        bloque_plan_aulas += "\n\nEL RESTO DEL PERSONAL SIN ACTIVIDAD ASIGNADA SE ENCUENTRA DE FRANCO."
+
     bloques_novedades = [
         bloque_novedades_simple_parte_formacion(
             "SERVICIO DE ARMAS DIURNO",
@@ -799,6 +824,8 @@ def generar_parte_formacion():
         "",
         "🗓️ NOVEDADES:",
         "",
+        bloque_plan_aulas,
+        "" if bloque_plan_aulas else "",
         "\n\n".join(bloques_novedades) if bloques_novedades else "Sin novedades operativas.",
     ]
     if sanitarias:
@@ -851,6 +878,28 @@ from db_manager import (
     obtener_contacto, obtener_todos_contactos, guardar_contacto,
     registrar_movimiento, obtener_movimientos
 )
+
+
+def clave_plan_numerico_aulas(fecha):
+    return f"plan_numerico_aulas_{fecha}"
+
+
+def obtener_plan_numerico_aulas(fecha):
+    valor = obtener_config(clave_plan_numerico_aulas(fecha), "{}")
+    try:
+        datos = json.loads(valor or "{}")
+        return datos if isinstance(datos, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+def guardar_plan_numerico_aulas(fecha, plan):
+    guardar_config(
+        clave_plan_numerico_aulas(fecha),
+        json.dumps(plan, ensure_ascii=False),
+    )
+
+
 st.set_page_config(
     page_title="Gestión de Parte Diario - Escuadrón H",
     page_icon="🟡",
@@ -2716,6 +2765,132 @@ with tab_config:
         st.rerun()
     dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
     st.caption(f"Horarios cargados para: {dia_reporte}. Podes editarlos y guardarlos para ese dia.")
+
+    st.divider()
+    st.subheader("Plan diario por aulas")
+    st.caption(
+        "Cargá solo cuántos ingresan y la actividad de cada aula. Las aulas con cero "
+        "quedarán de franco. Las novedades nominales se conservan y se suman aparte."
+    )
+
+    plan_aulas_guardado = obtener_plan_numerico_aulas(FECHA_PARTE_STR)
+    ordenes_con_novedad_plan = {
+        int(novedad.get("orden", -1))
+        for novedad in st.session_state.novedades_lista
+        if int(novedad.get("orden", -1)) >= 0
+    }
+    filas_plan_aulas = []
+    for aula_plan in AULAS_UNICAS:
+        personal_aula_plan = df[df["AULA"] == aula_plan]
+        ordenes_aula_plan = personal_aula_plan["ORDEN_LIMP"].astype(int).tolist()
+        novedades_aula_plan = len(set(ordenes_aula_plan) & ordenes_con_novedad_plan)
+        disponibles_aula_plan = len(ordenes_aula_plan) - novedades_aula_plan
+        plan_previo_aula = plan_aulas_guardado.get(aula_plan, {})
+        presentes_previos = min(
+            int(plan_previo_aula.get("presentes", 0) or 0),
+            disponibles_aula_plan,
+        )
+        filas_plan_aulas.append({
+            "Aula": aula_plan,
+            "Total": len(ordenes_aula_plan),
+            "Con novedad": novedades_aula_plan,
+            "Disponibles": disponibles_aula_plan,
+            "Presentes": presentes_previos,
+            "Actividad": str(plan_previo_aula.get("actividad", "") or ""),
+        })
+
+    tabla_plan_aulas = st.data_editor(
+        pd.DataFrame(filas_plan_aulas),
+        hide_index=True,
+        use_container_width=True,
+        disabled=["Aula", "Total", "Con novedad", "Disponibles"],
+        column_config={
+            "Aula": st.column_config.TextColumn("Aula", width="small"),
+            "Total": st.column_config.NumberColumn("Total", width="small"),
+            "Con novedad": st.column_config.NumberColumn("Novedades", width="small"),
+            "Disponibles": st.column_config.NumberColumn("Sin novedad", width="small"),
+            "Presentes": st.column_config.NumberColumn(
+                "Presentes", min_value=0, step=1, width="small"
+            ),
+            "Actividad": st.column_config.TextColumn(
+                "Actividad", width="large", help="Ej.: Rinden examen, Educación Física"
+            ),
+        },
+        key=f"tabla_plan_aulas_{FECHA_PARTE_STR}",
+    )
+
+    ambitos_plan = {}
+    for novedad_plan in st.session_state.novedades_lista:
+        orden_plan = int(novedad_plan.get("orden", -1))
+        ambito_plan = ambito_efectivo(novedad_plan)
+        if ambito_plan == "AUSENTE" or orden_plan not in ambitos_plan:
+            ambitos_plan[orden_plan] = ambito_plan
+    presentes_novedades_plan = sum(
+        1 for ambito in ambitos_plan.values() if ambito in {"INSTITUTO", "ESCUADRON"}
+    )
+    presentes_base_plan = int(
+        pd.to_numeric(tabla_plan_aulas["Presentes"], errors="coerce").fillna(0).sum()
+    )
+    presentes_final_plan = presentes_base_plan + presentes_novedades_plan
+    ausentes_final_plan = max(0, TOTAL_ESCUADRON - presentes_final_plan)
+    st.info(
+        f"Vista previa general: {presentes_final_plan} presentes y {ausentes_final_plan} ausentes. "
+        f"Incluye {presentes_novedades_plan} presente(s) con novedad nominal."
+    )
+
+    confirmar_plan_aulas = st.checkbox(
+        "Confirmo el plan: las aulas sin presentes quedarán de franco",
+        key=f"confirmar_plan_aulas_{FECHA_PARTE_STR}",
+    )
+    if st.button(
+        "Guardar plan y actualizar minuta",
+        type="primary",
+        use_container_width=True,
+        disabled=not confirmar_plan_aulas,
+        key=f"guardar_plan_aulas_{FECHA_PARTE_STR}",
+    ):
+        errores_plan = []
+        estados_plan = {}
+        plan_para_guardar = {}
+        for _, fila_plan in tabla_plan_aulas.iterrows():
+            aula_plan = str(fila_plan["Aula"])
+            disponibles_plan = int(fila_plan["Disponibles"])
+            try:
+                presentes_plan = int(fila_plan["Presentes"])
+            except (TypeError, ValueError):
+                presentes_plan = -1
+            if presentes_plan < 0 or presentes_plan > disponibles_plan:
+                errores_plan.append(
+                    f"{aula_plan}: presentes debe estar entre 0 y {disponibles_plan}"
+                )
+                continue
+
+            actividad_plan = str(fila_plan.get("Actividad", "") or "").strip()
+            ordenes_sin_novedad_plan = [
+                int(orden)
+                for orden in df[df["AULA"] == aula_plan]["ORDEN_LIMP"].tolist()
+                if int(orden) not in ordenes_con_novedad_plan
+            ]
+            ordenes_presentes_plan = set(ordenes_sin_novedad_plan[:presentes_plan])
+            for orden in ordenes_sin_novedad_plan:
+                estados_plan[orden] = (
+                    "PRESENTE EN ESCUADRÓN" if orden in ordenes_presentes_plan else "AUSENTE"
+                )
+            plan_para_guardar[aula_plan] = {
+                "presentes": presentes_plan,
+                "actividad": actividad_plan,
+            }
+
+        if errores_plan:
+            st.error("No se pudo guardar:\n- " + "\n- ".join(errores_plan))
+        else:
+            _db_manager.actualizar_asistencia_masiva(FECHA_PARTE_STR, estados_plan)
+            guardar_plan_numerico_aulas(FECHA_PARTE_STR, plan_para_guardar)
+            st.session_state.estado_asistencia.update(estados_plan)
+            st.success(
+                "Plan guardado. Las aulas sin actividad quedaron de franco y la minuta fue actualizada."
+            )
+            st.rerun()
 
     st.divider()
     st.subheader("Carga rápida por excepciones")
