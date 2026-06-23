@@ -760,6 +760,28 @@ def actualizar_asistencia(fecha, orden, estado):
         conn.commit()
 
 
+def actualizar_asistencia_masiva(fecha, estados_por_orden):
+    """Actualiza varios estados de asistencia en una sola transaccion."""
+    registros = [
+        (fecha, int(orden), str(estado))
+        for orden, estado in estados_por_orden.items()
+    ]
+    if not registros:
+        return 0
+
+    with get_db() as conn:
+        for registro in registros:
+            if is_postgres():
+                run(conn, """INSERT INTO asistencia_diaria (fecha, orden, estado) VALUES (?, ?, ?)
+                    ON CONFLICT (fecha, orden) DO UPDATE SET estado=EXCLUDED.estado""",
+                    registro)
+            else:
+                run(conn, """INSERT OR REPLACE INTO asistencia_diaria (fecha, orden, estado)
+                    VALUES (?, ?, ?)""", registro)
+        conn.commit()
+    return len(registros)
+
+
 # --- PLAN DE LLAMADA ---
 def obtener_contacto(orden):
     with get_db() as conn:

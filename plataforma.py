@@ -2716,6 +2716,99 @@ with tab_config:
         st.rerun()
     dia_reporte = DIAS_SEMANA[st.session_state.fecha_reporte.weekday()]
     st.caption(f"Horarios cargados para: {dia_reporte}. Podes editarlos y guardarlos para ese dia.")
+
+    st.divider()
+    st.subheader("Carga rápida por excepciones")
+    st.caption(
+        "Para días especiales: aplica un estado a todo un aula o al escuadrón y "
+        "selecciona solamente las excepciones. Actualiza los numéricos y las minutas."
+    )
+
+    grupos_carga_rapida = ["Todo el escuadrón"] + list(AULAS_UNICAS)
+    grupo_carga_rapida = st.selectbox(
+        "Personal a modificar",
+        grupos_carga_rapida,
+        key="grupo_carga_rapida",
+    )
+    modo_carga_rapida = st.radio(
+        "Accion masiva",
+        [
+            "Todos ausentes (franco), seleccionar quienes ingresan",
+            "Todos presentes, seleccionar quiénes quedan ausentes",
+        ],
+        horizontal=True,
+        key="modo_carga_rapida",
+    )
+
+    if grupo_carga_rapida == "Todo el escuadrón":
+        personal_carga_rapida = df.copy()
+    else:
+        personal_carga_rapida = df[df["AULA"] == grupo_carga_rapida].copy()
+    personal_carga_rapida = personal_carga_rapida.sort_values(
+        ["AULA", "NOMBRE_COMPLETO", "ORDEN_LIMP"]
+    )
+
+    etiquetas_personal = {
+        f"{row['NOMBRE_COMPLETO']} | {row['AULA']} | Orden {int(row['ORDEN_LIMP'])}": int(row["ORDEN_LIMP"])
+        for _, row in personal_carga_rapida.iterrows()
+    }
+    seleccion_excepciones = st.multiselect(
+        "Quiénes ingresan" if modo_carga_rapida.startswith("Todos ausentes") else "Quiénes quedan ausentes",
+        options=list(etiquetas_personal.keys()),
+        placeholder="Escribí un nombre y tocá para seleccionarlo",
+        key=f"excepciones_carga_rapida_{grupo_carga_rapida}_{modo_carga_rapida}",
+    )
+    ordenes_excepcion = {etiquetas_personal[etiqueta] for etiqueta in seleccion_excepciones}
+
+    estado_presentes = "PRESENTE EN ESCUADRÓN"
+    if modo_carga_rapida.startswith("Todos ausentes"):
+        destino_presentes = st.radio(
+            "Los seleccionados estarán",
+            ["Presentes en escuadrón", "Presentes en instituto"],
+            horizontal=True,
+            key="destino_presentes_carga_rapida",
+        )
+        if destino_presentes == "Presentes en instituto":
+            estado_presentes = "PRESENTE EN INSTITUTO"
+
+    total_grupo = len(personal_carga_rapida)
+    if modo_carga_rapida.startswith("Todos ausentes"):
+        cantidad_presentes = len(ordenes_excepcion)
+        cantidad_ausentes = total_grupo - cantidad_presentes
+    else:
+        cantidad_ausentes = len(ordenes_excepcion)
+        cantidad_presentes = total_grupo - cantidad_ausentes
+    st.info(
+        f"Vista previa para {st.session_state.fecha_reporte.strftime('%d/%m/%Y')}: "
+        f"{cantidad_presentes} presentes y {cantidad_ausentes} ausentes, sobre {total_grupo}."
+    )
+
+    confirmar_carga_rapida = st.checkbox(
+        "Confirmo que quiero reemplazar la asistencia de este grupo para la fecha del reporte",
+        key="confirmar_carga_rapida",
+    )
+    if st.button(
+        "Aplicar asistencia masiva",
+        type="primary",
+        use_container_width=True,
+        disabled=not confirmar_carga_rapida or total_grupo == 0,
+        key="aplicar_carga_rapida",
+    ):
+        estados_masivos = {}
+        for orden in personal_carga_rapida["ORDEN_LIMP"].astype(int).tolist():
+            if modo_carga_rapida.startswith("Todos ausentes"):
+                estados_masivos[orden] = estado_presentes if orden in ordenes_excepcion else "AUSENTE"
+            else:
+                estados_masivos[orden] = "AUSENTE" if orden in ordenes_excepcion else "PRESENTE EN ESCUADRÓN"
+
+        actualizados = _db_manager.actualizar_asistencia_masiva(FECHA_PARTE_STR, estados_masivos)
+        st.session_state.estado_asistencia.update(estados_masivos)
+        st.success(
+            f"Asistencia actualizada: {actualizados} registros. "
+            f"Presentes {cantidad_presentes} | Ausentes {cantidad_ausentes}."
+        )
+        st.rerun()
+
     st.divider()
     for aula in AULAS_UNICAS:
         cfg = st.session_state.horarios_config[aula]
