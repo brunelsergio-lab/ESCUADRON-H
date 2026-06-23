@@ -2735,8 +2735,9 @@ with tab_config:
         [
             "Todos ausentes (franco), seleccionar quienes ingresan",
             "Todos presentes, seleccionar quiénes quedan ausentes",
+            "Cargar solamente cantidades",
         ],
-        horizontal=True,
+        horizontal=False,
         key="modo_carga_rapida",
     )
 
@@ -2748,22 +2749,75 @@ with tab_config:
         ["AULA", "NOMBRE_COMPLETO", "ORDEN_LIMP"]
     )
 
-    etiquetas_personal = {
-        f"{row['NOMBRE_COMPLETO']} | {row['AULA']} | Orden {int(row['ORDEN_LIMP'])}": int(row["ORDEN_LIMP"])
-        for _, row in personal_carga_rapida.iterrows()
-    }
-    seleccion_excepciones = st.multiselect(
-        "Quiénes ingresan" if modo_carga_rapida.startswith("Todos ausentes") else "Quiénes quedan ausentes",
-        options=list(etiquetas_personal.keys()),
-        placeholder="Escribí un nombre y tocá para seleccionarlo",
-        key=f"excepciones_carga_rapida_{grupo_carga_rapida}_{modo_carga_rapida}",
+    total_grupo = len(personal_carga_rapida)
+    es_carga_numerica = modo_carga_rapida == "Cargar solamente cantidades"
+    ordenes_excepcion = set()
+    ordenes_grupo = personal_carga_rapida["ORDEN_LIMP"].astype(int).tolist()
+    ambitos_novedad_grupo = {}
+    for novedad_grupo in st.session_state.novedades_lista:
+        orden_novedad = int(novedad_grupo.get("orden", -1))
+        if orden_novedad not in ordenes_grupo:
+            continue
+        ambito_novedad = ambito_efectivo(novedad_grupo)
+        if ambito_novedad == "AUSENTE" or orden_novedad not in ambitos_novedad_grupo:
+            ambitos_novedad_grupo[orden_novedad] = ambito_novedad
+    ordenes_con_novedad_grupo = set(ambitos_novedad_grupo)
+    ordenes_sin_novedad_grupo = [
+        orden for orden in ordenes_grupo if orden not in ordenes_con_novedad_grupo
+    ]
+    ausentes_novedad_grupo = sum(
+        1 for ambito in ambitos_novedad_grupo.values() if ambito == "AUSENTE"
     )
-    ordenes_excepcion = {etiquetas_personal[etiqueta] for etiqueta in seleccion_excepciones}
+    presentes_novedad_grupo = len(ambitos_novedad_grupo) - ausentes_novedad_grupo
+
+    if es_carga_numerica:
+        personal_sin_novedad = len(ordenes_sin_novedad_grupo)
+        presentes_carga_numerica = int(st.number_input(
+            "Presentes sin novedad nominal",
+            min_value=0,
+            max_value=personal_sin_novedad,
+            value=personal_sin_novedad,
+            step=1,
+            key=f"cantidad_presentes_{FECHA_PARTE_STR}_{grupo_carga_rapida}_{personal_sin_novedad}",
+        ))
+        ausentes_carga_numerica = personal_sin_novedad - presentes_carga_numerica
+        cantidad_presentes = presentes_carga_numerica + presentes_novedad_grupo
+        cantidad_ausentes = ausentes_carga_numerica + ausentes_novedad_grupo
+        col_presentes_num, col_ausentes_num = st.columns(2)
+        col_presentes_num.metric("Presentes a cargar", presentes_carga_numerica)
+        col_ausentes_num.metric("Ausentes a cargar", ausentes_carga_numerica)
+        st.caption(
+            f"Se suman aparte {presentes_novedad_grupo} presente(s) y "
+            f"{ausentes_novedad_grupo} ausente(s) que ya tienen una novedad manual."
+        )
+        st.caption(
+            "La distribución numérica es provisional y no agrega movimientos nominales al historial. "
+            "Cuando tengas los nombres, podés reemplazarla desde Novedades."
+        )
+    else:
+        etiquetas_personal = {
+            f"{row['NOMBRE_COMPLETO']} | {row['AULA']} | Orden {int(row['ORDEN_LIMP'])}": int(row["ORDEN_LIMP"])
+            for _, row in personal_carga_rapida.iterrows()
+        }
+        seleccion_excepciones = st.multiselect(
+            "Quiénes ingresan" if modo_carga_rapida.startswith("Todos ausentes") else "Quiénes quedan ausentes",
+            options=list(etiquetas_personal.keys()),
+            placeholder="Escribí un nombre y tocá para seleccionarlo",
+            key=f"excepciones_carga_rapida_{grupo_carga_rapida}_{modo_carga_rapida}",
+        )
+        ordenes_excepcion = {etiquetas_personal[etiqueta] for etiqueta in seleccion_excepciones}
+
+        if modo_carga_rapida.startswith("Todos ausentes"):
+            cantidad_presentes = len(ordenes_excepcion)
+            cantidad_ausentes = total_grupo - cantidad_presentes
+        else:
+            cantidad_ausentes = len(ordenes_excepcion)
+            cantidad_presentes = total_grupo - cantidad_ausentes
 
     estado_presentes = "PRESENTE EN ESCUADRÓN"
-    if modo_carga_rapida.startswith("Todos ausentes"):
+    if modo_carga_rapida.startswith("Todos ausentes") or es_carga_numerica:
         destino_presentes = st.radio(
-            "Los seleccionados estarán",
+            "Los presentes estarán",
             ["Presentes en escuadrón", "Presentes en instituto"],
             horizontal=True,
             key="destino_presentes_carga_rapida",
@@ -2771,13 +2825,6 @@ with tab_config:
         if destino_presentes == "Presentes en instituto":
             estado_presentes = "PRESENTE EN INSTITUTO"
 
-    total_grupo = len(personal_carga_rapida)
-    if modo_carga_rapida.startswith("Todos ausentes"):
-        cantidad_presentes = len(ordenes_excepcion)
-        cantidad_ausentes = total_grupo - cantidad_presentes
-    else:
-        cantidad_ausentes = len(ordenes_excepcion)
-        cantidad_presentes = total_grupo - cantidad_ausentes
     st.info(
         f"Vista previa para {st.session_state.fecha_reporte.strftime('%d/%m/%Y')}: "
         f"{cantidad_presentes} presentes y {cantidad_ausentes} ausentes, sobre {total_grupo}."
@@ -2795,11 +2842,18 @@ with tab_config:
         key="aplicar_carga_rapida",
     ):
         estados_masivos = {}
-        for orden in personal_carga_rapida["ORDEN_LIMP"].astype(int).tolist():
-            if modo_carga_rapida.startswith("Todos ausentes"):
-                estados_masivos[orden] = estado_presentes if orden in ordenes_excepcion else "AUSENTE"
-            else:
-                estados_masivos[orden] = "AUSENTE" if orden in ordenes_excepcion else "PRESENTE EN ESCUADRÓN"
+        if es_carga_numerica:
+            ordenes_presentes_numericos = set(
+                ordenes_sin_novedad_grupo[:presentes_carga_numerica]
+            )
+            for orden in ordenes_sin_novedad_grupo:
+                estados_masivos[orden] = estado_presentes if orden in ordenes_presentes_numericos else "AUSENTE"
+        else:
+            for orden in ordenes_grupo:
+                if modo_carga_rapida.startswith("Todos ausentes"):
+                    estados_masivos[orden] = estado_presentes if orden in ordenes_excepcion else "AUSENTE"
+                else:
+                    estados_masivos[orden] = "AUSENTE" if orden in ordenes_excepcion else "PRESENTE EN ESCUADRÓN"
 
         actualizados = _db_manager.actualizar_asistencia_masiva(FECHA_PARTE_STR, estados_masivos)
         st.session_state.estado_asistencia.update(estados_masivos)
