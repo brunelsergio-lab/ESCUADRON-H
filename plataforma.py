@@ -3170,6 +3170,137 @@ with tab_nov:
 
     else:
         # Lógica de búsqueda y selección (Modo Registro)
+        with st.expander("Carga grupal de actividad", expanded=False):
+            st.caption("Selecciona varios aspirantes y asignales la misma actividad, horario, observacion y presentismo en una sola carga.")
+            opciones_grupo = {}
+            for _, aspirante in df.sort_values("NOMBRE_COMPLETO").iterrows():
+                etiqueta = (
+                    f"{aspirante['NOMBRE_COMPLETO']} | Aula {aspirante['AULA']} | "
+                    f"CE {aspirante['CE']} | DNI {aspirante['DNI']}"
+                )
+                opciones_grupo[etiqueta] = aspirante.to_dict()
+
+            with st.form("form_actividad_grupal"):
+                seleccion_grupal = st.multiselect(
+                    "Aspirantes designados",
+                    list(opciones_grupo.keys()),
+                    placeholder="Escribi nombre, aula, CE o DNI y selecciona los aspirantes",
+                )
+                ga1, ga2, ga3 = st.columns(3)
+                with ga1:
+                    actividad_grupal = st.text_input("Actividad", value="MISA", placeholder="Ej: MISA, EXAMEN, CEREMONIA", key="actividad_grupal_nombre")
+                with ga2:
+                    ingreso_grupal = st.text_input("Horario de ingreso", value="", placeholder="Ej: 08:15", key="actividad_grupal_ingreso")
+                with ga3:
+                    hasta_grupal = st.text_input("Hasta / finaliza", value="", placeholder="Ej: 08:15 o finalizacion", key="actividad_grupal_hasta")
+                ga4, ga5 = st.columns(2)
+                with ga4:
+                    lugar_grupal = st.text_input("Lugar / punto de ingreso", value="", placeholder="Ej: PUESTO 1 - INTERIOR DEL ESCUADRON", key="actividad_grupal_lugar")
+                with ga5:
+                    obs_grupal = st.text_input("Observacion", value="", placeholder="Ej: VESTIDOS CON MEJOR UOGEN", key="actividad_grupal_obs")
+                ga6, ga7 = st.columns(2)
+                with ga6:
+                    ambito_grupal = st.radio(
+                        "Presencia real",
+                        list(AMBITOS_NOVEDAD.keys()),
+                        index=1,
+                        format_func=lambda x: AMBITOS_NOVEDAD[x],
+                        horizontal=True,
+                        key="actividad_grupal_ambito",
+                    )
+                with ga7:
+                    fecha_grupal = st.date_input("Fecha de la actividad", value=st.session_state.fecha_reporte, key="actividad_grupal_fecha")
+                gf1, gf2 = st.columns(2)
+                with gf1:
+                    fecha_ini_grupal = fecha_grupal.strftime('%d%b%y').upper()
+                    st.text_input("Desde", value=fecha_ini_grupal, disabled=True, key="actividad_grupal_desde_txt")
+                with gf2:
+                    sin_fin_grupal = st.checkbox("Sin termino", value=False, key="actividad_grupal_sin_termino")
+                    if sin_fin_grupal:
+                        fecha_fin_grupal = "N/O"
+                        st.text_input("Hasta", value=fecha_fin_grupal, disabled=True, key="hasta_actividad_grupal_sin_termino")
+                    else:
+                        fecha_fin_grupal = st.date_input(
+                            "Hasta",
+                            value=fecha_grupal,
+                            key="fecha_fin_actividad_grupal",
+                        ).strftime('%d%b%y').upper()
+
+                guardar_grupal = st.form_submit_button("Grabar actividad para seleccionados", type="primary", use_container_width=True)
+
+            if guardar_grupal:
+                detalle_grupal = armar_detalle_actividad_especial(
+                    actividad_grupal,
+                    ingreso_grupal,
+                    hasta_grupal,
+                    lugar_grupal,
+                    obs_grupal,
+                )
+                if not seleccion_grupal:
+                    st.warning("Selecciona al menos un aspirante.")
+                    st.stop()
+                if not detalle_grupal.strip():
+                    st.warning("Completa al menos el nombre de la actividad.")
+                    st.stop()
+
+                existentes = {
+                    (int(nov.get("orden")), str(nov.get("fecha_ini", ""))): nov
+                    for nov in obtener_novedades()
+                    if str(nov.get("fecha_ini", "")) == fecha_ini_grupal
+                }
+                creadas = 0
+                actualizadas = 0
+                omitidas = 0
+                estado_asistencia_grupal = estado_asistencia_por_ambito(ambito_grupal)
+                fecha_asistencia_grupal = fecha_grupal.isoformat()
+
+                for etiqueta in seleccion_grupal:
+                    asp = opciones_grupo[etiqueta]
+                    orden_grupal = int(asp["ORDEN_LIMP"])
+                    nombre_grupal = asp.get("NOMBRE_COMPLETO", "")
+                    data_grupal = {
+                        "orden": orden_grupal,
+                        "grado": asp["GRADO"],
+                        "nombre": nombre_grupal,
+                        "dni": asp["DNI"],
+                        "ce": asp["CE"],
+                        "aula": asp["AULA"],
+                        "estado": "ACTIVIDAD ESPECIAL",
+                        "detalle": detalle_grupal.upper(),
+                        "fecha_ini": fecha_ini_grupal,
+                        "fecha_fin": fecha_fin_grupal,
+                        "ambito": ambito_grupal,
+                    }
+                    existente = existentes.get((orden_grupal, fecha_ini_grupal))
+                    if existente:
+                        if normalizar_estado_novedad(existente.get("estado")) not in ESTADOS_ACTIVIDAD_ESPECIAL:
+                            omitidas += 1
+                            continue
+                        actualizar_novedad(existente["id"], data_grupal)
+                        actualizadas += 1
+                    else:
+                        agregar_novedad(data_grupal)
+                        creadas += 1
+                    actualizar_asistencia(fecha_asistencia_grupal, orden_grupal, estado_asistencia_grupal)
+                    if fecha_asistencia_grupal == FECHA_PARTE_STR:
+                        st.session_state.estado_asistencia[orden_grupal] = estado_asistencia_grupal
+                    registrar_movimiento(
+                        fecha_asistencia_grupal,
+                        "Novedades",
+                        "ALTA GRUPAL ACTIVIDAD",
+                        orden_grupal,
+                        nombre_grupal,
+                        asp["AULA"],
+                        f"ACTIVIDAD ESPECIAL | {AMBITOS_NOVEDAD.get(ambito_grupal, ambito_grupal)} | {fecha_ini_grupal} a {fecha_fin_grupal} | {detalle_grupal.upper()}",
+                    )
+
+                st.session_state.novedades_lista = obtener_novedades(FECHA_PARTE_STR)
+                mensaje_grupal = f"Actividad grupal guardada: {creadas} nueva(s), {actualizadas} actualizada(s)."
+                if omitidas:
+                    mensaje_grupal += f" {omitidas} omitida(s) porque ya tenian otra novedad ese dia."
+                st.success(mensaje_grupal)
+                st.rerun()
+
         search = live_search_input("Buscar aspirante:", "Nombre, DNI o CE", "search_nov")
         if search.strip() and not st.session_state.sel_nov:
             s = search.strip().upper()
