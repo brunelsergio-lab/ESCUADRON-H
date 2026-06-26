@@ -247,6 +247,70 @@ def formatear_servicio(novedades, estados, curso_fn, titulo):
     return "\n".join(lineas)
 
 
+def codigo_fecha_hora_actividad(fecha_ini, ingreso):
+    fecha_txt = str(fecha_ini or "").strip().upper()
+    hora_txt = re.sub(r"\D", "", str(ingreso or ""))
+    if fecha_txt and hora_txt:
+        return f"{fecha_txt[:2]}{hora_txt}{fecha_txt[2:]}"
+    return fecha_txt
+
+
+def linea_nombre_actividad(nov):
+    grado = "ASP III" if es_tercer_anio(nov.get("grado", "")) else "ASP I"
+    return f"{grado} {str(nov.get('nombre') or '').strip()}"
+
+
+def agrupar_actividades_especiales(novedades, curso_fn=lambda _grado: True):
+    grupos = {}
+    for nov in novedades:
+        if normalizar_estado_novedad(nov.get("estado")) not in ESTADOS_ACTIVIDAD_ESPECIAL:
+            continue
+        if not curso_fn(nov.get("grado", "")):
+            continue
+        datos = parsear_detalle_actividad_especial(nov.get("detalle", ""))
+        actividad = datos.get("actividad") or "ACTIVIDAD"
+        clave = (
+            actividad.strip().upper(),
+            datos.get("ingreso", "").strip().upper(),
+            datos.get("hasta_hora", "").strip().upper(),
+            datos.get("lugar", "").strip().upper(),
+            datos.get("observacion", "").strip().upper(),
+            str(nov.get("fecha_ini", "")).strip().upper(),
+        )
+        grupos.setdefault(clave, {"datos": datos, "novedades": [], "fecha_ini": nov.get("fecha_ini", "")})
+        grupos[clave]["novedades"].append(nov)
+    return list(grupos.values())
+
+
+def formatear_actividades_especiales(novedades, curso_fn=lambda _grado: True):
+    grupos = agrupar_actividades_especiales(novedades, curso_fn)
+    if not grupos:
+        return ""
+    bloques = []
+    for grupo in grupos:
+        datos = grupo["datos"]
+        fecha_codigo = codigo_fecha_hora_actividad(grupo.get("fecha_ini", ""), datos.get("ingreso", ""))
+        actividad = (datos.get("actividad") or "ACTIVIDAD").strip().upper()
+        observacion = (datos.get("observacion") or "").strip().upper()
+        titulo = f"{actividad} DEL DIA {fecha_codigo}"
+        if observacion:
+            titulo += f" {observacion}"
+        lineas = [f"{titulo}:", ""]
+        for nov in grupo["novedades"]:
+            lineas.append(linea_nombre_actividad(nov))
+        cierre = []
+        lugar = (datos.get("lugar") or "").strip().upper()
+        hasta = (datos.get("hasta_hora") or "").strip().upper()
+        if lugar:
+            cierre.append(f"INGRESAN POR {lugar}")
+        if hasta:
+            cierre.append(f"ACTIVIDADES TERMINADAS {hasta.replace(':', '')}HS")
+        if cierre:
+            lineas.extend(["", f"{', '.join(cierre)}."])
+        bloques.append("\n".join(lineas))
+    return "\n\n".join(bloques)
+
+
 def formatear_ingreso_diferenciado(df_presentes_escuadron, curso_fn):
     lineas = []
     for aula in AULAS_UNICAS:
@@ -343,7 +407,7 @@ def generar_minuta_formal_clasica():
         "",
         "▫️ INGRESO HORARIO DIFERENCIADO:",
         formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_tercer_anio),
-        formatear_servicio(novedades, ESTADOS_ACTIVIDAD_ESPECIAL, es_tercer_anio, "ACTIVIDADES ESPECIALES"),
+        formatear_actividades_especiales(novedades, es_tercer_anio),
         "",
         formatear_servicio(novedades, ESTADOS_COMISION, es_tercer_anio, "COMISION DE SERVICIO"),
         "",
@@ -376,7 +440,7 @@ def generar_minuta_formal_clasica():
         "",
         "▫️ INGRESO EN HORARIO DIFERENCIAL:",
         formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_aop),
-        formatear_servicio(novedades, ESTADOS_ACTIVIDAD_ESPECIAL, es_aop, "ACTIVIDADES ESPECIALES"),
+        formatear_actividades_especiales(novedades, es_aop),
         "",
         formatear_servicio(novedades, ESTADOS_COMISION, es_aop, "COMISION DE SERVICIO"),
         "",
@@ -471,7 +535,7 @@ def bloque_novedades_operativas_minuta(novedades, df_presentes_escuadron, curso_
         bloques.append("\n".join(["\U0001F558 INGRESOS DIFERENCIADOS", *ingresos]))
 
     for bloque in [
-        bloque_lista_operativa_minuta("ACTIVIDADES ESPECIALES", "\U0001F4CD", novedades, ESTADOS_ACTIVIDAD_ESPECIAL, curso_fn, "Actividad"),
+        formatear_actividades_especiales(novedades, curso_fn),
         bloque_lista_operativa_minuta("COMISI\u00d3N DE SERVICIO", "\U0001F396\ufe0f", novedades, ESTADOS_COMISION, curso_fn, "Comisi\u00f3n"),
         bloque_lista_operativa_minuta("SERVICIO DE ARMAS DIURNO", "\U0001F6E1\ufe0f", novedades, ESTADOS_GUARDIA_DIURNA, curso_fn),
         bloque_lista_operativa_minuta("DESCANSO DE SERVICIO DE ARMAS NOCTURNO", "\U0001F319", novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, curso_fn),
@@ -793,12 +857,7 @@ def generar_parte_formacion():
         bloque_plan_aulas += "\n\nEL RESTO DEL PERSONAL SIN ACTIVIDAD ASIGNADA SE ENCUENTRA DE FRANCO."
 
     bloques_novedades = [
-        bloque_novedades_simple_parte_formacion(
-            "ACTIVIDADES ESPECIALES",
-            novedades,
-            ESTADOS_ACTIVIDAD_ESPECIAL,
-            "ASP"
-        ),
+        formatear_actividades_especiales(novedades),
         bloque_novedades_simple_parte_formacion(
             "SERVICIO DE ARMAS DIURNO",
             novedades,
