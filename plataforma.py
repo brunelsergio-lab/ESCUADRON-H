@@ -2506,6 +2506,26 @@ def armar_detalle_actividad_especial(actividad, ingreso, hasta_hora, lugar, obse
         partes.append(f"OBS: {observacion}")
     return " | ".join(partes)
 
+
+def agregar_aspirante_actividad_grupal():
+    seleccionado = st.session_state.get("actividad_grupal_buscar")
+    if not seleccionado:
+        return
+    lista = st.session_state.setdefault("actividad_grupal_seleccion", [])
+    if seleccionado not in lista:
+        lista.append(seleccionado)
+    st.session_state["actividad_grupal_buscar"] = None
+
+
+def quitar_aspirante_actividad_grupal(etiqueta):
+    lista = st.session_state.setdefault("actividad_grupal_seleccion", [])
+    st.session_state["actividad_grupal_seleccion"] = [item for item in lista if item != etiqueta]
+
+
+def limpiar_actividad_grupal():
+    st.session_state["actividad_grupal_seleccion"] = []
+    st.session_state["actividad_grupal_buscar"] = None
+
 def parsear_detalle_movimiento(detalle):
     datos = {"Motivo": "", "Presencia": "", "Desde": "", "Hasta": "", "Observación": detalle or ""}
     partes = [p.strip() for p in str(detalle or "").split("|")]
@@ -3180,53 +3200,78 @@ with tab_nov:
                 )
                 opciones_grupo[etiqueta] = aspirante.to_dict()
 
-            with st.form("form_actividad_grupal"):
-                seleccion_grupal = st.multiselect(
-                    "Aspirantes designados",
-                    list(opciones_grupo.keys()),
-                    placeholder="Escribi nombre, aula, CE o DNI y selecciona los aspirantes",
-                )
-                ga1, ga2, ga3 = st.columns(3)
-                with ga1:
-                    actividad_grupal = st.text_input("Actividad", value="MISA", placeholder="Ej: MISA, EXAMEN, CEREMONIA", key="actividad_grupal_nombre")
-                with ga2:
-                    ingreso_grupal = st.text_input("Horario de ingreso", value="", placeholder="Ej: 08:15", key="actividad_grupal_ingreso")
-                with ga3:
-                    hasta_grupal = st.text_input("Hasta / finaliza", value="", placeholder="Ej: 08:15 o finalizacion", key="actividad_grupal_hasta")
-                ga4, ga5 = st.columns(2)
-                with ga4:
-                    lugar_grupal = st.text_input("Lugar / punto de ingreso", value="", placeholder="Ej: PUESTO 1 - INTERIOR DEL ESCUADRON", key="actividad_grupal_lugar")
-                with ga5:
-                    obs_grupal = st.text_input("Observacion", value="", placeholder="Ej: VESTIDOS CON MEJOR UOGEN", key="actividad_grupal_obs")
-                ga6, ga7 = st.columns(2)
-                with ga6:
-                    ambito_grupal = st.radio(
-                        "Presencia real",
-                        list(AMBITOS_NOVEDAD.keys()),
-                        index=1,
-                        format_func=lambda x: AMBITOS_NOVEDAD[x],
-                        horizontal=True,
-                        key="actividad_grupal_ambito",
-                    )
-                with ga7:
-                    fecha_grupal = st.date_input("Fecha de la actividad", value=st.session_state.fecha_reporte, key="actividad_grupal_fecha")
-                gf1, gf2 = st.columns(2)
-                with gf1:
-                    fecha_ini_grupal = fecha_grupal.strftime('%d%b%y').upper()
-                    st.text_input("Desde", value=fecha_ini_grupal, disabled=True, key="actividad_grupal_desde_txt")
-                with gf2:
-                    sin_fin_grupal = st.checkbox("Sin termino", value=False, key="actividad_grupal_sin_termino")
-                    if sin_fin_grupal:
-                        fecha_fin_grupal = "N/O"
-                        st.text_input("Hasta", value=fecha_fin_grupal, disabled=True, key="hasta_actividad_grupal_sin_termino")
-                    else:
-                        fecha_fin_grupal = st.date_input(
-                            "Hasta",
-                            value=fecha_grupal,
-                            key="fecha_fin_actividad_grupal",
-                        ).strftime('%d%b%y').upper()
+            st.selectbox(
+                "Buscar y agregar aspirante",
+                list(opciones_grupo.keys()),
+                index=None,
+                placeholder="Escribi nombre, aula, CE o DNI y toca el aspirante",
+                key="actividad_grupal_buscar",
+                on_change=agregar_aspirante_actividad_grupal,
+            )
+            seleccion_grupal = st.session_state.setdefault("actividad_grupal_seleccion", [])
+            if seleccion_grupal:
+                st.markdown(f"**Aspirantes designados ({len(seleccion_grupal)}):**")
+                for idx_lista, etiqueta_sel in enumerate(seleccion_grupal, 1):
+                    asp_sel = opciones_grupo.get(etiqueta_sel, {})
+                    grado_sel = "ASP III" if es_tercer_anio(asp_sel.get("GRADO", "")) else "ASP I"
+                    nombre_sel = asp_sel.get("NOMBRE_COMPLETO", etiqueta_sel.split("|", 1)[0].strip())
+                    col_nom, col_quitar = st.columns([7, 1])
+                    with col_nom:
+                        st.markdown(f"{idx_lista}. {grado_sel} {nombre_sel}")
+                    with col_quitar:
+                        if st.button("Quitar", key=f"quitar_actividad_grupal_{idx_lista}", use_container_width=True):
+                            quitar_aspirante_actividad_grupal(etiqueta_sel)
+                            st.rerun()
+            else:
+                st.info("Todavia no agregaste aspirantes a esta actividad.")
 
-                guardar_grupal = st.form_submit_button("Grabar actividad para seleccionados", type="primary", use_container_width=True)
+            ga1, ga2, ga3 = st.columns(3)
+            with ga1:
+                actividad_grupal = st.text_input("Actividad", value="MISA", placeholder="Ej: MISA, EXAMEN, CEREMONIA", key="actividad_grupal_nombre")
+            with ga2:
+                ingreso_grupal = st.text_input("Horario de ingreso", value="", placeholder="Ej: 08:15", key="actividad_grupal_ingreso")
+            with ga3:
+                hasta_grupal = st.text_input("Hasta / finaliza", value="", placeholder="Ej: 08:15 o finalizacion", key="actividad_grupal_hasta")
+            ga4, ga5 = st.columns(2)
+            with ga4:
+                lugar_grupal = st.text_input("Lugar / punto de ingreso", value="", placeholder="Ej: PUESTO 1 - INTERIOR DEL ESCUADRON", key="actividad_grupal_lugar")
+            with ga5:
+                obs_grupal = st.text_input("Observacion", value="", placeholder="Ej: VESTIDOS CON MEJOR UOGEN", key="actividad_grupal_obs")
+            ga6, ga7 = st.columns(2)
+            with ga6:
+                ambito_grupal = st.radio(
+                    "Presencia real",
+                    list(AMBITOS_NOVEDAD.keys()),
+                    index=1,
+                    format_func=lambda x: AMBITOS_NOVEDAD[x],
+                    horizontal=True,
+                    key="actividad_grupal_ambito",
+                )
+            with ga7:
+                fecha_grupal = st.date_input("Fecha de la actividad", value=st.session_state.fecha_reporte, key="actividad_grupal_fecha")
+            gf1, gf2 = st.columns(2)
+            with gf1:
+                fecha_ini_grupal = fecha_grupal.strftime('%d%b%y').upper()
+                st.text_input("Desde", value=fecha_ini_grupal, disabled=True, key="actividad_grupal_desde_txt")
+            with gf2:
+                sin_fin_grupal = st.checkbox("Sin termino", value=False, key="actividad_grupal_sin_termino")
+                if sin_fin_grupal:
+                    fecha_fin_grupal = "N/O"
+                    st.text_input("Hasta", value=fecha_fin_grupal, disabled=True, key="hasta_actividad_grupal_sin_termino")
+                else:
+                    fecha_fin_grupal = st.date_input(
+                        "Hasta",
+                        value=fecha_grupal,
+                        key="fecha_fin_actividad_grupal",
+                    ).strftime('%d%b%y').upper()
+
+            col_guardar_grupal, col_limpiar_grupal = st.columns([3, 1])
+            with col_guardar_grupal:
+                guardar_grupal = st.button("Grabar actividad para seleccionados", type="primary", use_container_width=True)
+            with col_limpiar_grupal:
+                if st.button("Limpiar lista", use_container_width=True):
+                    limpiar_actividad_grupal()
+                    st.rerun()
 
             if guardar_grupal:
                 detalle_grupal = armar_detalle_actividad_especial(
@@ -3299,6 +3344,7 @@ with tab_nov:
                 if omitidas:
                     mensaje_grupal += f" {omitidas} omitida(s) porque ya tenian otra novedad ese dia."
                 st.success(mensaje_grupal)
+                limpiar_actividad_grupal()
                 st.rerun()
 
         search = live_search_input("Buscar aspirante:", "Nombre, DNI o CE", "search_nov")
