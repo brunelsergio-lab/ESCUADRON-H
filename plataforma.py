@@ -2524,7 +2524,6 @@ def quitar_aspirante_actividad_grupal(etiqueta):
 
 def limpiar_actividad_grupal():
     st.session_state["actividad_grupal_seleccion"] = []
-    st.session_state["actividad_grupal_buscar"] = None
 
 def parsear_detalle_movimiento(detalle):
     datos = {"Motivo": "", "Presencia": "", "Desde": "", "Hasta": "", "Observación": detalle or ""}
