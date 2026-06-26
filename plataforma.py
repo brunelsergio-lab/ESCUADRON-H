@@ -91,6 +91,7 @@ ESTADOS_AUSENCIA = {"AUSENTE", "ART", "DAF", "LES", "SSD", "LAO", "AUTORIZADO", 
 ESTADOS_GUARDIA_DIURNA = {"ENTRANTE GUARDIA DIURNA", "SERVICIO DE ARMAS DIURNA"}
 ESTADOS_GUARDIA_NOCTURNA = {"ENTRANTE GUARDIA NOCTURNA", "SERVICIO DE ARMAS NOCTURNA"}
 ESTADOS_COMISION = {"COMISION", "COMISION DE SERVICIO"}
+ESTADOS_ACTIVIDAD_ESPECIAL = {"ACTIVIDAD ESPECIAL"}
 AMBITOS_NOVEDAD = {
     "AUSENTE": "Ausente",
     "INSTITUTO": "Presente en instituto",
@@ -105,6 +106,8 @@ def ambito_por_defecto(estado):
     if estado == "PRESENTE EN ESCUADRÓN":
         return "ESCUADRON"
     if estado == "COMISIÓN":
+        return "INSTITUTO"
+    if estado in ESTADOS_ACTIVIDAD_ESPECIAL:
         return "INSTITUTO"
     return "ESCUADRON"
 
@@ -340,6 +343,8 @@ def generar_minuta_formal_clasica():
         "",
         "▫️ INGRESO HORARIO DIFERENCIADO:",
         formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_tercer_anio),
+        formatear_servicio(novedades, ESTADOS_ACTIVIDAD_ESPECIAL, es_tercer_anio, "ACTIVIDADES ESPECIALES"),
+        "",
         formatear_servicio(novedades, ESTADOS_COMISION, es_tercer_anio, "COMISION DE SERVICIO"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_tercer_anio, "SERVICIO DE ARMAS DIURNA"),
@@ -371,6 +376,8 @@ def generar_minuta_formal_clasica():
         "",
         "▫️ INGRESO EN HORARIO DIFERENCIAL:",
         formatear_ingreso_diferenciado(df_presentes_escuadron_minuta, es_aop),
+        formatear_servicio(novedades, ESTADOS_ACTIVIDAD_ESPECIAL, es_aop, "ACTIVIDADES ESPECIALES"),
+        "",
         formatear_servicio(novedades, ESTADOS_COMISION, es_aop, "COMISION DE SERVICIO"),
         "",
         formatear_servicio(novedades, ESTADOS_GUARDIA_DIURNA, es_aop, "SERVICIO DE ARMAS DIURNO"),
@@ -464,6 +471,7 @@ def bloque_novedades_operativas_minuta(novedades, df_presentes_escuadron, curso_
         bloques.append("\n".join(["\U0001F558 INGRESOS DIFERENCIADOS", *ingresos]))
 
     for bloque in [
+        bloque_lista_operativa_minuta("ACTIVIDADES ESPECIALES", "\U0001F4CD", novedades, ESTADOS_ACTIVIDAD_ESPECIAL, curso_fn, "Actividad"),
         bloque_lista_operativa_minuta("COMISI\u00d3N DE SERVICIO", "\U0001F396\ufe0f", novedades, ESTADOS_COMISION, curso_fn, "Comisi\u00f3n"),
         bloque_lista_operativa_minuta("SERVICIO DE ARMAS DIURNO", "\U0001F6E1\ufe0f", novedades, ESTADOS_GUARDIA_DIURNA, curso_fn),
         bloque_lista_operativa_minuta("DESCANSO DE SERVICIO DE ARMAS NOCTURNO", "\U0001F319", novedades, ESTADOS_GUARDIA_NOCTURNA | {"DESCANSO DE GUARDIA"}, curso_fn),
@@ -785,6 +793,12 @@ def generar_parte_formacion():
         bloque_plan_aulas += "\n\nEL RESTO DEL PERSONAL SIN ACTIVIDAD ASIGNADA SE ENCUENTRA DE FRANCO."
 
     bloques_novedades = [
+        bloque_novedades_simple_parte_formacion(
+            "ACTIVIDADES ESPECIALES",
+            novedades,
+            ESTADOS_ACTIVIDAD_ESPECIAL,
+            "ASP"
+        ),
         bloque_novedades_simple_parte_formacion(
             "SERVICIO DE ARMAS DIURNO",
             novedades,
@@ -2444,6 +2458,54 @@ def estado_asistencia_por_ambito(ambito):
         return "PRESENTE EN INSTITUTO"
     return "PRESENTE EN ESCUADR?N"
 
+def parsear_detalle_actividad_especial(detalle):
+    datos = {
+        "actividad": "",
+        "ingreso": "",
+        "hasta_hora": "",
+        "lugar": "",
+        "observacion": "",
+    }
+    for parte in str(detalle or "").split("|"):
+        if ":" not in parte:
+            continue
+        clave, valor = parte.split(":", 1)
+        clave_norm = normalizar_estado_novedad(clave)
+        valor = valor.strip()
+        if clave_norm == "ACTIVIDAD":
+            datos["actividad"] = valor
+        elif clave_norm == "INGRESO":
+            datos["ingreso"] = valor.replace("HS", "").strip()
+        elif clave_norm in {"HASTA", "FIN", "ACTIVIDADES TERMINADAS"}:
+            datos["hasta_hora"] = valor.replace("HS", "").strip()
+        elif clave_norm in {"LUGAR", "PUNTO", "PUERTA"}:
+            datos["lugar"] = valor
+        elif clave_norm in {"OBS", "OBSERVACION", "DETALLE"}:
+            datos["observacion"] = valor
+    if not any(datos.values()) and detalle:
+        datos["observacion"] = str(detalle).strip()
+    return datos
+
+
+def armar_detalle_actividad_especial(actividad, ingreso, hasta_hora, lugar, observacion):
+    partes = []
+    actividad = str(actividad or "").strip().upper()
+    ingreso = str(ingreso or "").strip().upper()
+    hasta_hora = str(hasta_hora or "").strip().upper()
+    lugar = str(lugar or "").strip().upper()
+    observacion = str(observacion or "").strip().upper()
+    if actividad:
+        partes.append(f"ACTIVIDAD: {actividad}")
+    if ingreso:
+        partes.append(f"INGRESO: {ingreso} HS")
+    if hasta_hora:
+        partes.append(f"HASTA: {hasta_hora} HS")
+    if lugar:
+        partes.append(f"LUGAR: {lugar}")
+    if observacion:
+        partes.append(f"OBS: {observacion}")
+    return " | ".join(partes)
+
 def parsear_detalle_movimiento(detalle):
     datos = {"Motivo": "", "Presencia": "", "Desde": "", "Hasta": "", "Observación": detalle or ""}
     partes = [p.strip() for p in str(detalle or "").split("|")]
@@ -2467,7 +2529,7 @@ def parsear_detalle_movimiento(detalle):
     return datos
 
 def limpiar_form_novedad():
-    for key in ("sel_estado", "sel_ambito", "txt_detalle"):
+    for key in ("sel_estado", "sel_ambito", "txt_detalle", "txt_actividad_especial", "txt_ingreso_especial", "txt_hasta_especial", "txt_lugar_especial", "txt_obs_especial"):
         if key in st.session_state:
             del st.session_state[key]
 
@@ -3176,6 +3238,7 @@ with tab_nov:
     "LAO",
     "SSD",
     "COMISIÓN",
+    "ACTIVIDAD ESPECIAL",
     "AUTORIZADO",
     "ENTRANTE GUARDIA DIURNA",
     "ENTRANTE GUARDIA NOCTURNA",
@@ -3188,8 +3251,14 @@ with tab_nov:
                 st.session_state.sel_estado = current_estado
             idx_opts = opts.index(current_estado) if current_estado in opts else 0
             est = st.selectbox("Situación:", opts, index=idx_opts, key="sel_estado")
+        detalle_actual = data.get('detalle', '')
+        actividad_actual = parsear_detalle_actividad_especial(detalle_actual)
         with c2:
-            det = st.text_input("Detalle:", value=data.get('detalle', ''), key="txt_detalle")
+            if est in ESTADOS_ACTIVIDAD_ESPECIAL:
+                det = actividad_actual.get("observacion", "")
+                st.info("Cargá la actividad puntual, el horario y el lugar. El presentismo se define abajo.")
+            else:
+                det = st.text_input("Detalle:", value=detalle_actual, key="txt_detalle")
 
         ambito_actual = st.session_state.get("sel_ambito") or data.get('ambito') or ambito_por_defecto(est)
         ambito_keys = list(AMBITOS_NOVEDAD.keys())
@@ -3202,6 +3271,53 @@ with tab_nov:
             key="sel_ambito",
             horizontal=True
         )
+
+        if est in ESTADOS_ACTIVIDAD_ESPECIAL:
+            st.markdown("#### Actividad puntual")
+            ca1, ca2, ca3 = st.columns(3)
+            with ca1:
+                actividad_especial = st.text_input(
+                    "Nombre de la actividad",
+                    value=actividad_actual.get("actividad") or "",
+                    placeholder="Ej: MISA, EXAMEN, CEREMONIA",
+                    key="txt_actividad_especial",
+                )
+            with ca2:
+                ingreso_especial = st.text_input(
+                    "Horario de ingreso",
+                    value=actividad_actual.get("ingreso") or "",
+                    placeholder="Ej: 08:15",
+                    key="txt_ingreso_especial",
+                )
+            with ca3:
+                hasta_especial = st.text_input(
+                    "Hasta / finaliza",
+                    value=actividad_actual.get("hasta_hora") or "",
+                    placeholder="Ej: 08:15 o finalizacion",
+                    key="txt_hasta_especial",
+                )
+            ca4, ca5 = st.columns(2)
+            with ca4:
+                lugar_especial = st.text_input(
+                    "Lugar / punto de ingreso",
+                    value=actividad_actual.get("lugar") or "",
+                    placeholder="Ej: PUESTO 1 - INTERIOR DEL ESCUADRON",
+                    key="txt_lugar_especial",
+                )
+            with ca5:
+                obs_especial = st.text_input(
+                    "Observacion",
+                    value=actividad_actual.get("observacion") or "",
+                    placeholder="Ej: VESTIDOS CON MEJOR UOGEN",
+                    key="txt_obs_especial",
+                )
+            det = armar_detalle_actividad_especial(
+                actividad_especial,
+                ingreso_especial,
+                hasta_especial,
+                lugar_especial,
+                obs_especial,
+            )
 
         fecha_form_default = st.session_state.fecha_reporte
         cf1, cf2 = st.columns(2)
@@ -3233,6 +3349,9 @@ with tab_nov:
         with b1:
             if es_edicion:
                 if st.button("💾 Guardar Cambios", type="primary", use_container_width=True, key="btn_save_edit"):
+                    if est in ESTADOS_ACTIVIDAD_ESPECIAL and not det.strip():
+                        st.warning("Completa al menos el nombre de la actividad antes de guardar.")
+                        st.stop()
                     nov_id = st.session_state.novedades_lista[edit_idx]['id']
                     actualizar_novedad(nov_id, {"estado": est, "detalle": det.upper(), "fecha_ini": fi, "fecha_fin": ff, "ambito": ambito})
                     actualizar_asistencia(FECHA_PARTE_STR, data.get("orden"), estado_asistencia_por_ambito(ambito))
@@ -3245,6 +3364,9 @@ with tab_nov:
                     st.rerun()
             else:
                 if st.button("💾 Grabar Novedad", use_container_width=True, key="btn_save_new"):
+                    if est in ESTADOS_ACTIVIDAD_ESPECIAL and not det.strip():
+                        st.warning("Completa al menos el nombre de la actividad antes de guardar.")
+                        st.stop()
                     nombre_asp = data.get('NOMBRE_COMPLETO', data.get('nombre', 'Aspirante'))
                     agregar_novedad({
                         "orden": int(data["ORDEN_LIMP"]), "grado": data["GRADO"],
