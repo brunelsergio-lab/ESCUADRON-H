@@ -1,7 +1,46 @@
-__pycache__/
+```
+# Compiled and build artifacts
 *.pyc
-.streamlit/secrets.toml
-parte_diario.db
-*.xlsx
-*.xls
+__pycache__/
+
+# Dependencies
+.venv/
+venv/
+
+# Logs and temp files
 *.log
+*.tmp
+*.swp
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
+
+# Python specific
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.Python
+*.pot
+
+# Backup files
+*~
+*.bak
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```

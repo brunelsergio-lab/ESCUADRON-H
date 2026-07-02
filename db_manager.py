@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 from datetime import datetime
+import streamlit as st
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.getenv("SQLITE_DB_PATH") or os.path.join(BASE_DIR, "parte_diario.db")
@@ -28,7 +29,6 @@ def get_database_url():
 
     if not url:
         try:
-            import streamlit as st
             url = st.secrets.get("DATABASE_URL", None)
         except Exception:
             url = None
@@ -64,6 +64,8 @@ def get_db():
     conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA cache_size=-64000")
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
@@ -521,6 +523,7 @@ def eliminar_usuario(id_usuario):
         conn.commit()
 
 # --- NOVEDADES ---
+@st.cache_data(ttl=60)
 def obtener_novedades(fecha=None):
     with get_db() as conn:
         cur = run(conn, "SELECT * FROM novedades ORDER BY orden")
@@ -744,7 +747,7 @@ def guardar_horarios_dia(aula, dia, data):
 # --- ASISTENCIA ---
 def obtener_asistencia(fecha):
     with get_db() as conn:
-        cur = run(conn, "SELECT * FROM asistencia_diaria WHERE fecha=?", (fecha,))
+        cur = run(conn, "SELECT orden, estado FROM asistencia_diaria WHERE fecha=?", (fecha,))
         return {r['orden']: r['estado'] for r in cur.fetchall()}
 
 
