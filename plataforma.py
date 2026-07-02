@@ -127,6 +127,195 @@ def es_aop(valor):
     return "AOP" in texto or "CAO" in texto or "AUXILIAR" in texto
 
 
+def parsear_minuta_texto(texto_minuta):
+    """
+    Parsea el texto de una minuta y extrae los aspirantes clasificados por estado.
+    
+    Formato esperado:
+    - DIURNA: ASP I PAES JONATAN. / ASP I GONZALES LUCAS.
+    - NOCTURNA: ASP I GIMENES ERNESTO.
+    - DESCANSO DE GUARDIA: ASP I DIONICIO SERGIO.
+    - ART: ASP AUX OP ALMADA MATIAS, POR TIEMPO INDEFINIDO.
+    
+    Retorna un diccionario con listas de nombres por estado.
+    """
+    import re
+    
+    texto = texto_minuta.upper()
+    resultados = {
+        "ENTRANTE GUARDIA DIURNA": [],
+        "ENTRANTE GUARDIA NOCTURNA": [],
+        "DESCANSO DE GUARDIA": [],
+        "ART": [],
+        "AUSENTE": [],
+        "COMISIÓN": [],
+        "ACTIVIDAD ESPECIAL": [],
+    }
+    
+    # Patrones para detectar secciones - más específicos
+    patrones_seccion = [
+        (r"(?:^|\n)\s*DIURNA\s*:", "ENTRANTE GUARDIA DIURNA"),
+        (r"(?:^|\n)\s*NOCTURNA\s*:", "ENTRANTE GUARDIA NOCTURNA"),
+        (r"(?:^|\n)\s*DESCANSO DE GUARDIA\s*:", "DESCANSO DE GUARDIA"),
+        (r"(?:^|\n)\s*ART\s*:", "ART"),
+        (r"(?:^|\n)\s*AUSENTES?\s*:", "AUSENTE"),
+        (r"(?:^|\n)\s*COMISION(?: DE SERVICIO)?\s*:", "COMISIÓN"),
+    ]
+    
+    # Encontrar todas las posiciones de inicio de sección
+    secciones = []
+    for patron, estado in patrones_seccion:
+        for match in re.finditer(patron, texto, re.MULTILINE):
+            secciones.append((match.start(), match.end(), estado))
+    
+    # Ordenar por posición
+    secciones.sort(key=lambda x: x[0])
+    
+    # Procesar cada sección
+    for i, (inicio, fin, estado) in enumerate(secciones):
+        # Determinar el final de esta sección (inicio de la siguiente o fin del texto)
+        if i + 1 < len(secciones):
+            siguiente_inicio = secciones[i + 1][0]
+            contenido_seccion = texto[fin:siguiente_inicio]
+        else:
+            contenido_seccion = texto[fin:]
+        
+        # Buscar líneas con nombres de aspirantes en esta sección
+        lineas = contenido_seccion.split("\n")
+        for linea in lineas:
+            linea = linea.strip()
+            if not linea:
+                continue
+            
+            # Verificar si es una línea con nombre de aspirante
+            if re.search(r"\bASP\b", linea) and re.search(r"[A-ZÁÉÍÓÚÑ]{2,}(?:\s+[A-ZÁÉÍÓÚÑ]{2,})+", linea):
+                # Extraer el nombre completo
+                nombre_limpio = re.sub(
+                    r"^(?:\d+\.?\s*|-?\s*)?(?:ASP\s+(?:I+|III|AUX\s+OP)\s+)",
+                    "",
+                    linea,
+                    flags=re.IGNORECASE
+                )
+                # Eliminar sufijos como detalles después del nombre (ej: ", POR TIEMPO INDEFINIDO")
+                nombre_limpio = re.sub(r"\s*,.*$", "", nombre_limpio)
+                # Eliminar puntos finales
+                nombre_limpio = nombre_limpio.strip().rstrip(".")
+                
+                if nombre_limpio and len(nombre_limpio.split()) >= 2:
+                    resultados[estado].append(nombre_limpio)
+    
+    return resultados
+
+
+def importar_novedades_desde_minuta(texto_minuta, fecha_objetivo=None):
+    """
+    Importa novedades desde el texto de una minuta.
+    
+    1. Parsea la minuta para extraer aspirantes por estado
+    2. Busca cada aspirante en la base de datos por nombre
+    3. Crea las novedades correspondientes
+    4. Actualiza el presentismo
+    
+    Retorna un dict con estadísticas de la importación.
+    """
+    from datetime import datetime
+    
+    if fecha_objetivo is None:
+        fecha_objetivo = ahora_local().date()
+    
+    fecha_str = fecha_objetivo.strftime('%d%b%y').upper()
+    parsed = parsear_minuta_texto(texto_minuta)
+    
+    estadisticas = {
+        "total_procesados": 0,
+        "encontrados": 0,
+        "no_encontrados": [],
+        "novedades_creadas": 0,
+        "por_estado": {}
+    }
+    
+    # Mapeo de estados a ámbito por defecto
+    ambito_por_estado = {
+        "ENTRANTE GUARDIA DIURNA": "ESCUADRON",
+        "ENTRANTE GUARDIA NOCTURNA": "ESCUADRON",
+        "DESCANSO DE GUARDIA": "ESCUADRON",
+        "ART": "AUSENTE",
+        "AUSENTE": "AUSENTE",
+        "COMISIÓN": "INSTITUTO",
+        "ACTIVIDAD ESPECIAL": "INSTITUTO",
+    }
+    
+    for estado, nombres in parsed.items():
+        if not nombres:
+            continue
+        
+        estadisticas["por_estado"][estado] = {"procesados": 0, "encontrados": 0}
+        
+        for nombre_completo in nombres:
+            estadisticas["total_procesados"] += 1
+            estadisticas["por_estado"][estado]["procesados"] += 1
+            
+            # Buscar aspirante en la base de datos por nombre
+            aspirante = None
+            nombre_busqueda = nombre_completo.strip().upper()
+            
+            # Intentar coincidir con df (datos cargados)
+            for _, row in df.iterrows():
+                nombre_df = row.get('NOMBRE_COMPLETO', '').strip().upper()
+                # Coincidencia exacta o parcial (si el nombre de la minuta está contenido en el DF)
+                if nombre_busqueda == nombre_df or nombre_busqueda in nombre_df or nombre_df in nombre_busqueda:
+                    aspirante = row
+                    break
+            
+            if aspirante is not None:
+                estadisticas["encontrados"] += 1
+                estadisticas["por_estado"][estado]["encontrados"] += 1
+                
+                orden = int(aspirante["ORDEN_LIMP"])
+                grado = aspirante["GRADO"]
+                dni = aspirante.get("DNI", "")
+                ce = aspirante.get("CE", "")
+                aula = aspirante.get("AULA", "-")
+                ambito = ambito_por_estado.get(estado, "AUSENTE")
+                
+                # Verificar si ya existe una novedad para este aspirante en esta fecha
+                novedades_existentes = [
+                    n for n in st.session_state.novedades_lista
+                    if n.get("orden") == orden and n.get("fecha_ini") == fecha_str
+                ]
+                
+                if not novedades_existentes:
+                    # Crear nueva novedad
+                    agregar_novedad({
+                        "orden": orden,
+                        "grado": grado,
+                        "nombre": aspirante["NOMBRE_COMPLETO"],
+                        "dni": dni,
+                        "ce": ce,
+                        "aula": aula,
+                        "estado": estado,
+                        "detalle": "" if estado not in ["ART"] else "POR MINUTA",
+                        "fecha_ini": fecha_str,
+                        "fecha_fin": "N/O" if estado in ["ENTRANTE GUARDIA DIURNA", "ENTRANTE GUARDIA NOCTURNA", "DESCANSO DE GUARDIA"] else "N/O",
+                        "ambito": ambito
+                    })
+                    estadisticas["novedades_creadas"] += 1
+                
+                # Actualizar asistencia
+                estado_asistencia = "PRESENTE" if ambito in ["ESCUADRON", "INSTITUTO"] else "AUSENTE"
+                actualizar_asistencia(fecha_str, orden, estado_asistencia)
+            else:
+                estadisticas["no_encontrados"].append({
+                    "nombre": nombre_completo,
+                    "estado": estado
+                })
+    
+    # Recargar novedades actualizadas
+    st.session_state.novedades_lista = obtener_novedades(fecha_str)
+    
+    return estadisticas
+
+
 def normalizar_hora_ingreso(valor):
     texto = str(valor or "06:00").strip().replace(".", ":")
     if not texto:
@@ -3201,6 +3390,51 @@ if tab_usuarios is not None:
 
 # --- TAB: NOVEDADES ---
 with tab_nov:
+    # ==============================================================================
+    # SECCIÓN: IMPORTAR DESDE MINUTA
+    # ==============================================================================
+    st.subheader("📋 Importar desde Minuta")
+    st.caption(
+        "Pegá el texto completo de la minuta y la app detectará automáticamente los aspirantes "
+        "y sus estados (Guardia Diurna, Nocturna, Descanso, ART, etc.)."
+    )
+    
+    with st.expander("📥 Cargar minuta completa", expanded=False):
+        texto_minuta = st.text_area(
+            "Pegar texto de la minuta:",
+            placeholder="NOVEDADES AULA 7 TT DEL ESCUADRÓN H...\n\nSERVICIO DE GUARDIA-\n\n DIURNA:\nASP I PAES JONATAN.\nASP I GONZALES LUCAS.\n...\n\n NOCTURNA:\nASP I GIMENES ERNESTO.\n...\n\nDESCANSO DE GUARDIA:\nASP I DIONICIO SERGIO.\n...\n\nART:\nASP AUX OP ALMADA MATIAS, POR TIEMPO INDEFINIDO.",
+            height=300,
+            key="txt_minuta_importar"
+        )
+        
+        col_importar_1, col_importar_2 = st.columns([1, 2])
+        with col_importar_1:
+            btn_importar = st.button("🚀 Importar Minuta", type="primary", use_container_width=True, key="btn_importar_minuta")
+        
+        if btn_importar and texto_minuta.strip():
+            with st.spinner("Procesando minuta..."):
+                stats = importar_novedades_desde_minuta(texto_minuta, st.session_state.fecha_reporte)
+            
+            st.success(f"✅ Importación completada: {stats['encontrados']} de {stats['total_procesados']} aspirantes encontrados.")
+            
+            if stats['no_encontrados']:
+                st.warning(f"⚠️ {len(stats['no_encontrados'])} aspirantes no se encontraron en la base:")
+                for item in stats['no_encontrados'][:10]:
+                    st.caption(f"- {item['nombre']} ({item['estado']})")
+                if len(stats['no_encontrados']) > 10:
+                    st.caption(f"... y {len(stats['no_encontrados']) - 10} más.")
+            
+            st.info(f"📊 Novedades creadas: {stats['novedades_creadas']}")
+            for estado, datos in stats['por_estado'].items():
+                if datos['procesados'] > 0:
+                    st.caption(f"• {estado}: {datos['encontrados']}/{datos['procesados']}")
+            
+            st.rerun()
+        elif btn_importar and not texto_minuta.strip():
+            st.warning("⚠️ Pegá el texto de la minuta antes de importar.")
+        
+        st.divider()
+    
     st.divider()
     edit_idx = st.session_state.editando_idx
     es_edicion = edit_idx is not None
