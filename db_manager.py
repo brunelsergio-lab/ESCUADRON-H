@@ -886,17 +886,29 @@ def crear_formulario(slug, nombre, descripcion="", token="", activo=True, reglas
                 (str(slug).strip().lower(), str(nombre).strip(), descripcion or "", token, 1 if activo else 0, reglas_json, ahora, ahora))
             nuevo_id = cur.lastrowid
         conn.commit()
-    return nuevo_id
+        return nuevo_id
+
+
+def actualizar_formulario(id_formulario, **kwargs):
+    """Actualiza los campos de un formulario dinámico."""
+    datos = {}
+    for clave, valor in kwargs.items():
+        if clave == "activo":
             valor = 1 if valor else 0
         elif clave == "reglas_json":
             valor = _json_db_value(valor)
         datos[clave] = valor
+    
     datos["actualizado_en"] = _now_text()
     sets = ", ".join([f"{k}=?" for k in datos])
     params = list(datos.values()) + [id_formulario]
+    
     with get_db() as conn:
         run(conn, f"UPDATE formularios SET {sets} WHERE id=?", tuple(params))
         conn.commit()
+
+
+def listar_formularios():
 
 
 def listar_formularios():
