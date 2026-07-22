@@ -36,7 +36,8 @@ def get_database_url():
     if not url:
         return None
 
-    url = str(url).strip()
+    # Limpieza robusta de espacios, comillas o caracteres extra que rompen psycopg2
+    url = str(url).strip().strip('"').strip("'")
     if not url or "TU_PASSWORD" in url:
         return None
     return url
@@ -412,7 +413,6 @@ def _init_postgres(conn):
         actualizado_en TEXT NOT NULL,
         UNIQUE(formulario_id, orden)
     )""")
-
 
 
 # --- USUARIOS Y SEGURIDAD ---
@@ -883,23 +883,10 @@ def crear_formulario(slug, nombre, descripcion="", token="", activo=True, reglas
             cur = run(conn, """INSERT INTO formularios
                 (slug, nombre, descripcion, token, activo, reglas_json, creado_en, actualizado_en)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (str(slug).strip().lower(), str(nombre).strip(), descripcion or "", token, 1 if activo else 0, reglas_json, ahora, ahora)
-            )
+                (str(slug).strip().lower(), str(nombre).strip(), descripcion or "", token, 1 if activo else 0, reglas_json, ahora, ahora))
             nuevo_id = cur.lastrowid
         conn.commit()
-        return nuevo_id
-
-
-def actualizar_formulario(id_formulario, **campos):
-    asegurar_tablas()
-    permitidos = {"slug", "nombre", "descripcion", "token", "activo", "reglas_json"}
-    datos = {}
-    for clave, valor in campos.items():
-        if clave not in permitidos:
-            continue
-        if clave == "slug":
-            valor = str(valor).strip().lower()
-        elif clave == "activo":
+    return nuevo_id
             valor = 1 if valor else 0
         elif clave == "reglas_json":
             valor = _json_db_value(valor)
