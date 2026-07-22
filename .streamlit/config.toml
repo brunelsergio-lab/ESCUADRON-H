@@ -9,3 +9,13 @@ font = "sans serif"
 [server]
 enableStaticServing = true
 headless = true
+
+# Tus credenciales y variables de la app:
+DATABASE_URL = "postgresql://postgres.jmlsggcsymrvgtcrcddq:SERGIO2026brunel@aws-1-us-west-2.pooler.supabase.com:6543/postgres?sslmode=require"
+OWNER_ADMIN_ENABLED = "false"
+OWNER_ADMIN_USER = "admin"
+OWNER_ADMIN_PASSWORD = "SER12bru"
+OWNER_ADMIN_SOLO = "true"
+PLAN_FORM_ENABLED = "true"
+PLAN_FORM_TOKEN = "licencia2026"
+FORM_ADMIN_PIN = "123"
