@@ -879,13 +879,13 @@ def crear_formulario(slug, nombre, descripcion="", token="", activo=True, reglas
                 (str(slug).strip().lower(), str(nombre).strip(), descripcion or "", token, 1 if activo else 0, reglas_json, ahora, ahora)
             )
             nuevo_id = cur.fetchone()["id"]
-                    else:
-                cur = run(conn, """INSERT INTO formularios
-                    (slug, nombre, descripcion, token, activo, reglas_json, creado_en, actualizado_en)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (str(slug).strip().lower(), str(nombre).strip(), descripcion or "", token, 1 if activo else 0, reglas_json, ahora, ahora))
-                nuevo_id = cur.lastrowid
-            conn.commit()
+        else:
+            cur = run(conn, """INSERT INTO formularios
+                (slug, nombre, descripcion, token, activo, reglas_json, creado_en, actualizado_en)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (str(slug).strip().lower(), str(nombre).strip(), descripcion or "", token, 1 if activo else 0, reglas_json, ahora, ahora))
+            nuevo_id = cur.lastrowid
+        conn.commit()
         return nuevo_id
 
 
@@ -906,9 +906,6 @@ def actualizar_formulario(id_formulario, **kwargs):
     with get_db() as conn:
         run(conn, f"UPDATE formularios SET {sets} WHERE id=?", tuple(params))
         conn.commit()
-
-def listar_formularios():
-
 
 def listar_formularios():
     asegurar_tablas()
